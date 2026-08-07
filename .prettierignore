@@ -1,0 +1,8 @@
+.next
+coverage
+node_modules
+AGENTS.md
+CLAUDE.md
+src/generated
+package-lock.json
+public/brand/*.svg

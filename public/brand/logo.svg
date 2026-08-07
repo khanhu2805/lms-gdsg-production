@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 96" role="img" aria-labelledby="title desc">
+  <title id="title">LMS GDSG</title>
+  <desc id="desc">Nhận diện chữ tạm thời của hệ thống LMS GDSG</desc>
+  <rect width="96" height="96" rx="24" fill="#2C3D78"/>
+  <path d="M24 32c0-6.6 5.4-12 12-12h36v14H39a3 3 0 0 0-3 3v22a3 3 0 0 0 3 3h19V50H46V38h28v38H36c-6.6 0-12-5.4-12-12V32Z" fill="#fff"/>
+  <rect x="65" y="20" width="12" height="14" rx="3" fill="#D82D34"/>
+  <text x="116" y="43" fill="#1F2E5E" font-family="Arial, sans-serif" font-size="27" font-weight="700">LMS GDSG</text>
+  <text x="116" y="68" fill="#667085" font-family="Arial, sans-serif" font-size="14">GIÁO DỤC SÀI GÒN</text>
+</svg>

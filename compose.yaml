@@ -1,0 +1,148 @@
+name: lms-gdsg
+
+x-app-environment: &app-environment
+  NODE_ENV: production
+  NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost}
+  BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost}
+  BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
+  BETTER_AUTH_TRUSTED_ORIGINS: ${BETTER_AUTH_TRUSTED_ORIGINS:-http://localhost}
+  NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:?NEXT_SERVER_ACTIONS_ENCRYPTION_KEY is required}
+  DATABASE_URL: postgresql://${POSTGRES_USER:-lms}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/${POSTGRES_DB:-lms_gdsg}?schema=public
+  DIRECT_URL: postgresql://${POSTGRES_USER:-lms}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/${POSTGRES_DB:-lms_gdsg}?schema=public
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID is required}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?GOOGLE_CLIENT_SECRET is required}
+  OAUTH_TOKEN_ENCRYPTION_KEY: ${OAUTH_TOKEN_ENCRYPTION_KEY:?OAUTH_TOKEN_ENCRYPTION_KEY is required}
+  SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@example.com}
+  SEED_ADMIN_NAME: ${SEED_ADMIN_NAME:-Quản trị viên}
+  SEED_DEMO: "false"
+  UPLOAD_ROOT: /data/lms
+  RECORDINGS_DIR: /data/lms/recordings
+  DOCUMENTS_DIR: /data/lms/documents
+  SUBMISSIONS_DIR: /data/lms/submissions
+  IMAGES_DIR: /data/lms/images
+  THUMBNAILS_DIR: /data/lms/thumbnails
+  REPORTS_DIR: /data/lms/reports
+  TEMP_DIR: /data/lms/temp
+  BACKUPS_DIR: /data/lms/backups
+  MAX_VIDEO_SIZE_MB: ${MAX_VIDEO_SIZE_MB:-8192}
+  MAX_DOCUMENT_SIZE_MB: ${MAX_DOCUMENT_SIZE_MB:-100}
+  MAX_SUBMISSION_SIZE_MB: ${MAX_SUBMISSION_SIZE_MB:-50}
+  MAX_CONCURRENT_VIDEO_SESSIONS: ${MAX_CONCURRENT_VIDEO_SESSIONS:-2}
+  VIDEO_COMPLETION_PERCENTAGE: ${VIDEO_COMPLETION_PERCENTAGE:-90}
+  VIDEO_PROGRESS_INTERVAL_SECONDS: ${VIDEO_PROGRESS_INTERVAL_SECONDS:-20}
+  MAX_CONCURRENT_VIDEO_JOBS: ${MAX_CONCURRENT_VIDEO_JOBS:-2}
+  WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS:-3000}
+  ATTENDANCE_EARLY_MINUTES: ${ATTENDANCE_EARLY_MINUTES:-15}
+  ATTENDANCE_LATE_AFTER_MINUTES: ${ATTENDANCE_LATE_AFTER_MINUTES:-10}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+
+services:
+  db:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-lms_gdsg}
+      POSTGRES_USER: ${POSTGRES_USER:-lms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-lms} -d ${POSTGRES_DB:-lms_gdsg}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    security_opt:
+      - no-new-privileges:true
+    networks: [backend]
+
+  migrate:
+    build:
+      context: .
+      target: migrate
+    environment: *app-environment
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+    networks: [backend]
+
+  app:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    environment: *app-environment
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - protected-data:/data/lms
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/readyz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+    networks: [backend]
+
+  worker:
+    build:
+      context: .
+      target: worker
+    restart: unless-stopped
+    environment:
+      <<: *app-environment
+      WORKER_ID: ${WORKER_ID:-lms-worker-1}
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - protected-data:/data/lms
+    security_opt:
+      - no-new-privileges:true
+    networks: [backend]
+
+  nginx:
+    image: nginx:1.29-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "${HTTP_PORT:-80}:8080"
+    volumes:
+      - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - protected-data:/data/lms:ro
+    group_add:
+      - "1001"
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    networks: [backend]
+
+volumes:
+  postgres-data:
+  protected-data:
+
+networks:
+  backend:
+    driver: bridge
