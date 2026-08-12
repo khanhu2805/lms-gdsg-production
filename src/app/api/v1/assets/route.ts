@@ -17,9 +17,45 @@ const uploadCategorySchema = z.enum([
   "IMAGE",
 ]);
 
+function assertTrustedOrigin(request: Request) {
+  const origin = request.headers.get("origin");
+
+  // Cho phép request server-to-server hoặc client không gửi Origin.
+  if (!origin) return;
+
+  const requestOrigin = new URL(request.url).origin;
+
+  const trustedOrigins = new Set([
+    requestOrigin,
+    process.env.NEXT_PUBLIC_APP_URL,
+    ...(process.env.BETTER_AUTH_TRUSTED_ORIGINS?.split(",") ?? []),
+  ]);
+
+  const normalizedOrigin =
+    origin.trim().replace(/\/$/, "");
+
+  const allowed = [...trustedOrigins]
+    .filter(
+      (value): value is string =>
+        Boolean(value),
+    )
+    .map((value) =>
+      value.trim().replace(/\/$/, ""),
+    )
+    .includes(normalizedOrigin);
+
+  if (!allowed) {
+    throw new AppError(
+      "FORBIDDEN",
+      "Nguồn gửi yêu cầu không được phép.",
+    );
+  }
+}
+
 export async function POST(request: Request) {
   const context = getRequestContext(request.headers);
   try {
+    assertTrustedOrigin(request);
     const actor = await requireActor(request.headers);
     if (
       ![

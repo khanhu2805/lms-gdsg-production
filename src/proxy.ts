@@ -34,5 +34,15 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: "/api/v1/:path*",
+  matcher: [
+    {
+      source: "/api/v1/:path*",
+      missing: [
+        {
+          type: "header",
+          key: "x-file-name",
+        },
+      ],
+    },
+  ],
 };

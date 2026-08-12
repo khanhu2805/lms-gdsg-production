@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
   experimental: {
+    proxyClientMaxBodySize: "64mb",
     serverActions: {
       bodySizeLimit: "2mb",
     },
