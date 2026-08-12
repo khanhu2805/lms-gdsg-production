@@ -1,17 +1,14 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import {
-  BookOpen,
-  CalendarDays,
-  CheckCircle2,
-  Plus,
-  Search,
-  ShieldCheck,
-} from "lucide-react";
+import { Plus, Search } from "lucide-react";
 
+import { ParentChildSwitcher } from "@/components/parent/child-switcher";
 import { DataTable } from "@/components/ui/data-table";
+import { Pagination } from "@/components/ui/pagination";
 import { NAVIGATION_BY_ROLE } from "@/config/navigation";
 import { requireActor } from "@/lib/auth/actor";
+import { resolveParentContext } from "@/modules/dashboard/parent-context";
+import { parseDashboardPage, parseDashboardPageSize } from "@/modules/dashboard/query-options";
 import { loadSectionData } from "@/modules/dashboard/section-data";
 
 export const dynamic = "force-dynamic";
@@ -137,6 +134,16 @@ const CONTENT_CREATE_SECTIONS = [
   "quizzes",
 ] as const;
 
+const NON_PAGINATED_SECTIONS = new Set(["profile", "settings"]);
+const PARENT_SCOPED_SECTIONS = new Set([
+  "sessions",
+  "assignments",
+  "quizzes",
+  "results",
+  "attendance",
+  "progress",
+]);
+
 function createHref(section: string) {
   const typeBySection: Record<string, string> = {
     videos: "VIDEO",
@@ -155,7 +162,12 @@ export default async function SectionPage({
   searchParams,
 }: {
   params: Promise<{ section: string }>;
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    page?: string;
+    pageSize?: string;
+    studentId?: string;
+  }>;
 }) {
   const actor = await requireActor();
   const [{ section }, query] = await Promise.all([params, searchParams]);
@@ -165,8 +177,58 @@ export default async function SectionPage({
   );
 
   if (!copy || !allowed) notFound();
+
   const search = query.q?.trim().slice(0, 120);
-  const data = await loadSectionData(actor, section, search);
+  const page = parseDashboardPage(query.page);
+  const pageSize = parseDashboardPageSize(query.pageSize);
+  const parentContext =
+    actor.role === "PARENT"
+      ? await resolveParentContext(actor, query.studentId)
+      : null;
+  const selectedStudentId = parentContext?.selectedStudentId ?? undefined;
+
+  const data = await loadSectionData(actor, section, search, {
+    page,
+    pageSize,
+    studentId: selectedStudentId,
+  });
+  const hasNext = data.rows.length > pageSize;
+  const visibleRows = data.rows.slice(0, pageSize);
+
+  const learnerOpenSections = new Set([
+    "classes",
+    "lessons",
+    "videos",
+    "materials",
+    "assignments",
+    "quizzes",
+  ]);
+  const learnerCanOpen =
+    (actor.role === "STUDENT" || actor.role === "PARENT") &&
+    learnerOpenSections.has(section);
+  const tableColumns = learnerCanOpen
+    ? [...data.columns, "Thao tác"]
+    : data.columns;
+  const tableRows = learnerCanOpen
+    ? visibleRows.map((row) => ({
+        ...row,
+        cells: [
+          ...row.cells,
+          <Link
+            key={`open-${row.id}`}
+            href={
+              section === "classes"
+                ? `/dashboard/classes/${row.id}`
+                : `/dashboard/learn/${row.id}`
+            }
+            className="inline-flex min-h-9 items-center rounded-lg border border-[#D0D5DD] bg-white px-3 text-xs font-semibold text-[#344054] hover:bg-[#F9FAFB]"
+          >
+            Mở
+          </Link>,
+        ],
+      }))
+    : visibleRows;
+
   const canCreate =
     Boolean(copy.action) &&
     ((["ADMIN", "MANAGER"].includes(actor.role) &&
@@ -211,6 +273,16 @@ export default async function SectionPage({
         ) : null}
       </div>
 
+      {parentContext && PARENT_SCOPED_SECTIONS.has(section) ? (
+        <ParentChildSwitcher
+          students={parentContext.children}
+          selectedStudentId={parentContext.selectedStudentId}
+          action={`/dashboard/${section}`}
+          search={search}
+          pageSize={pageSize}
+        />
+      ) : null}
+
       <section className="mt-7">
         <form
           method="get"
@@ -227,6 +299,10 @@ export default async function SectionPage({
               className="h-11 w-full rounded-xl border border-[#D0D5DD] bg-white pr-4 pl-10 text-sm"
             />
           </label>
+          {selectedStudentId ? (
+            <input type="hidden" name="studentId" value={selectedStudentId} />
+          ) : null}
+          <input type="hidden" name="pageSize" value={pageSize} />
           <button
             type="submit"
             className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#D0D5DD] bg-white px-4 text-sm font-semibold text-[#344054] hover:bg-[#F9FAFB]"
@@ -234,39 +310,17 @@ export default async function SectionPage({
             Tìm kiếm
           </button>
         </form>
-        <DataTable columns={data.columns} rows={data.rows} />
+        <DataTable columns={tableColumns} rows={tableRows} />
+        {!NON_PAGINATED_SECTIONS.has(section) ? (
+          <Pagination
+            basePath={`/dashboard/${section}`}
+            page={page}
+            pageSize={pageSize}
+            hasNext={hasNext}
+            params={{ q: search, studentId: selectedStudentId }}
+          />
+        ) : null}
       </section>
-
-      {/* <section className="mt-6 grid gap-4 md:grid-cols-3">
-        {[
-          {
-            icon: ShieldCheck,
-            title: "Phân quyền phía máy chủ",
-            text: "Mọi thao tác đều kiểm tra vai trò và phạm vi tài nguyên.",
-          },
-          {
-            icon: CalendarDays,
-            title: "Gắn với buổi học",
-            text: "Nội dung và hoạt động luôn nằm đúng bối cảnh lớp học.",
-          },
-          {
-            icon: section === "contents" ? BookOpen : CheckCircle2,
-            title: "Có dấu vết thay đổi",
-            text: "Các hành động quan trọng được lưu trong nhật ký kiểm toán.",
-          },
-        ].map(({ icon: Icon, title, text }) => (
-          <article
-            key={title}
-            className="rounded-2xl border border-[#E4E7EC] bg-white p-5"
-          >
-            <Icon className="size-5 text-[#4059A5]" />
-            <h2 className="mt-4 text-sm font-semibold text-[#172033]">
-              {title}
-            </h2>
-            <p className="mt-1 text-xs leading-5 text-[#667085]">{text}</p>
-          </article>
-        ))}
-      </section> */}
     </div>
   );
 }

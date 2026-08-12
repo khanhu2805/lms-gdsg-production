@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useActionDialogs } from "@/components/ui/action-dialogs";
 import { Download, Play, Save, Send } from "lucide-react";
 
 import type { ResourceOption } from "@/modules/dashboard/resource-data";
@@ -345,6 +346,7 @@ function AssignmentGradingEditor({
   actorRole: string;
 }) {
   const router = useRouter();
+  const { requestReason } = useActionDialogs();
   const submission = entity as GradingSubmission;
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{
@@ -389,7 +391,21 @@ function AssignmentGradingEditor({
   async function operation(
     action: "PUBLISH" | "RETURN" | "REQUIRE_RESUBMISSION",
   ) {
-    const reason = window.prompt("Nhập lý do cho thao tác:");
+    const reason = await requestReason({
+      title:
+        action === "PUBLISH"
+          ? "Công bố điểm"
+          : action === "RETURN"
+            ? "Trả bài"
+            : "Yêu cầu nộp lại",
+      confirmLabel:
+        action === "PUBLISH"
+          ? "Công bố"
+          : action === "RETURN"
+            ? "Trả bài"
+            : "Yêu cầu nộp lại",
+      danger: action === "REQUIRE_RESUBMISSION",
+    });
     if (!reason) return;
     setBusy(true);
     setNotice(undefined);
@@ -596,6 +612,7 @@ function QuizGradingEditor({
   actorRole: string;
 }) {
   const router = useRouter();
+  const { requestReason } = useActionDialogs();
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{
     message: string;
@@ -639,7 +656,11 @@ function QuizGradingEditor({
   }
 
   async function publish() {
-    const reason = window.prompt("Nhập lý do công bố điểm:");
+    const reason = await requestReason({
+      title: "Công bố điểm bài kiểm tra",
+      description: "Sau khi công bố, học sinh/phụ huynh có thể xem kết quả theo chính sách hiện tại.",
+      confirmLabel: "Công bố điểm",
+    });
     if (!reason) return;
     setBusy(true);
     setNotice(undefined);
@@ -1000,6 +1021,7 @@ export function ReportEditor({
 
 export function JobEditor({ entity }: { entity: unknown }) {
   const router = useRouter();
+  const { requestReason } = useActionDialogs();
   const job = entity as JobDetail;
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{
@@ -1008,7 +1030,11 @@ export function JobEditor({ entity }: { entity: unknown }) {
   }>();
 
   async function retry() {
-    const reason = window.prompt("Nhập lý do chạy lại job:");
+    const reason = await requestReason({
+      title: "Chạy lại job thất bại",
+      description: "Job sẽ được đưa lại vào hàng chờ và tăng số lần thử theo chính sách.",
+      confirmLabel: "Chạy lại job",
+    });
     if (!reason) return;
     setBusy(true);
     setNotice(undefined);

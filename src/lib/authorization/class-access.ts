@@ -54,6 +54,9 @@ export async function assertClassAccess(actor: Actor, classId: string) {
   const courseClass = await prisma.courseClass.findFirst({
     where: {
       id: classId,
+      ...(actor.role === "STUDENT" || actor.role === "PARENT"
+        ? { status: "ACTIVE" as const }
+        : {}),
       ...whereByRole[actor.role],
     },
     select: {

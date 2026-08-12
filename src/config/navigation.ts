@@ -73,6 +73,11 @@ export const NAVIGATION_BY_ROLE: Record<UserRole, NavigationItem[]> = {
     { label: "Điểm danh", href: "/dashboard/attendance", icon: ClipboardCheck },
     { label: "Chấm bài", href: "/dashboard/grading", icon: ListChecks },
     {
+      label: "Tiến độ học sinh",
+      href: "/dashboard/progress",
+      icon: ChartNoAxesCombined,
+    },
+    {
       label: "Báo cáo lớp",
       href: "/dashboard/reports",
       icon: ChartNoAxesCombined,
@@ -86,6 +91,11 @@ export const NAVIGATION_BY_ROLE: Record<UserRole, NavigationItem[]> = {
     { label: "Nội dung của tôi", href: "/dashboard/contents", icon: BookOpen },
     { label: "Điểm danh", href: "/dashboard/attendance", icon: ClipboardCheck },
     { label: "Hỗ trợ chấm", href: "/dashboard/grading", icon: FileCheck2 },
+    {
+      label: "Tiến độ học sinh",
+      href: "/dashboard/progress",
+      icon: ChartNoAxesCombined,
+    },
     common.profile,
   ],
   STUDENT: [

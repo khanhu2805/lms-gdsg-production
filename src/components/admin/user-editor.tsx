@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useActionDialogs } from "@/components/ui/action-dialogs";
 import {
   KeyRound,
   Link2,
@@ -117,6 +118,7 @@ export function UserEditor({
   users: ResourceOption[];
 }) {
   const router = useRouter();
+  const { requestReason } = useActionDialogs();
   const user = entity as UserDetail | null;
   const [role, setRole] = useState<UserRole>(user?.role ?? "STUDENT");
   const [busy, setBusy] = useState(false);
@@ -220,9 +222,12 @@ export function UserEditor({
     action: "LOCK" | "UNLOCK" | "DELETE" | "RESTORE" | "REVOKE_SESSIONS",
   ) {
     if (!user) return;
-    const reason = window.prompt(
-      "Nhập lý do cho thao tác này (tối thiểu 3 ký tự):",
-    );
+    const reason = await requestReason({
+      title: "Xác nhận thao tác tài khoản",
+      description: `Thao tác ${action} sẽ được ghi vào nhật ký kiểm toán.`,
+      confirmLabel: "Thực hiện",
+      danger: action === "LOCK" || action === "DELETE",
+    });
     if (!reason) return;
     setBusy(true);
     setNotice(undefined);
@@ -282,7 +287,12 @@ export function UserEditor({
 
   async function unlinkStudent(studentId: string) {
     if (!user) return;
-    const reason = window.prompt("Nhập lý do gỡ liên kết:");
+    const reason = await requestReason({
+      title: "Gỡ liên kết phụ huynh – học sinh",
+      description: "Liên kết sẽ ngừng hoạt động nhưng lịch sử vẫn được giữ lại.",
+      confirmLabel: "Gỡ liên kết",
+      danger: true,
+    });
     if (!reason) return;
     setBusy(true);
     setNotice(undefined);

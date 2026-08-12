@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useActionDialogs } from "@/components/ui/action-dialogs";
 import { Archive, ArrowRightLeft, UserMinus, UserPlus } from "lucide-react";
 
 import type { ResourceOption } from "@/modules/dashboard/resource-data";
@@ -82,6 +83,7 @@ export function ClassEditor({
   users: ResourceOption[];
 }) {
   const router = useRouter();
+  const { requestReason } = useActionDialogs();
   const courseClass = entity as CourseClassDetail | null;
   const [busy, setBusy] = useState(false);
   const [staffRole, setStaffRole] = useState<"TEACHER" | "TEACHING_ASSISTANT">(
@@ -218,7 +220,12 @@ export function ClassEditor({
     role: "TEACHER" | "TEACHING_ASSISTANT" | "STUDENT",
   ) {
     if (!courseClass) return;
-    const reason = window.prompt("Nhập lý do gỡ thành viên khỏi lớp:");
+    const reason = await requestReason({
+      title: "Gỡ thành viên khỏi lớp",
+      description: "Thành viên sẽ được gỡ nhưng lịch sử liên quan vẫn được giữ lại.",
+      confirmLabel: "Gỡ thành viên",
+      danger: true,
+    });
     if (!reason) return;
     startMutation();
     try {
@@ -275,7 +282,12 @@ export function ClassEditor({
 
   async function archiveClass() {
     if (!courseClass) return;
-    const reason = window.prompt("Nhập lý do lưu trữ lớp học:");
+    const reason = await requestReason({
+      title: "Lưu trữ lớp học",
+      description: "Lớp sẽ ngừng hoạt động nhưng dữ liệu lịch sử vẫn được giữ lại.",
+      confirmLabel: "Lưu trữ lớp",
+      danger: true,
+    });
     if (!reason) return;
     startMutation();
     try {

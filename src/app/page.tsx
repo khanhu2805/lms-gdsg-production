@@ -23,7 +23,7 @@ export default async function LoginPage({
   return (
     <main className="grid min-h-screen lg:grid-cols-[1.08fr_0.92fr]">
       <section className="surface-grid relative hidden overflow-hidden bg-[#243467] px-12 py-10 text-white lg:flex lg:flex-col">
-        <BrandLogo className="brightness-0 invert" />
+        <BrandLogo/>
         <div className="my-auto max-w-2xl">
           <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-semibold tracking-wide">
             <ShieldCheck aria-hidden="true" className="size-4" />

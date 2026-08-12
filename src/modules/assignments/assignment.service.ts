@@ -81,6 +81,13 @@ export async function getStudentAssignment(actor: Actor, assignmentId: string) {
           finalScore: true,
           teacherFeedback: true,
           publishedAt: true,
+          answers: {
+            select: {
+              questionId: true,
+              answerText: true,
+              selectedChoiceIds: true,
+            },
+          },
           files: {
             select: {
               asset: {

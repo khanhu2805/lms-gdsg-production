@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useActionDialogs } from "@/components/ui/action-dialogs";
 import { CalendarX2, ClipboardCheck, DoorOpen, DoorClosed } from "lucide-react";
 
 import type { ResourceOption } from "@/modules/dashboard/resource-data";
@@ -59,6 +60,7 @@ export function SessionEditor({
   actorRole: string;
 }) {
   const router = useRouter();
+  const { requestReason } = useActionDialogs();
   const session = entity as SessionDetail | null;
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{
@@ -140,11 +142,20 @@ export function SessionEditor({
     action: "CANCEL" | "OPEN_ATTENDANCE" | "CLOSE_ATTENDANCE",
   ) {
     if (!session) return;
-    const reason = window.prompt(
-      action === "CANCEL"
-        ? "Nhập lý do hủy buổi học:"
-        : "Nhập lý do thay đổi trạng thái điểm danh:",
-    );
+    const reason = await requestReason({
+      title:
+        action === "CANCEL"
+          ? "Hủy buổi học"
+          : action === "OPEN_ATTENDANCE"
+            ? "Mở điểm danh"
+            : "Đóng điểm danh",
+      description:
+        action === "CANCEL"
+          ? "Buổi học sẽ được đánh dấu đã hủy thay vì xóa cứng."
+          : "Thay đổi này được lưu vào lịch sử vận hành buổi học.",
+      confirmLabel: action === "CANCEL" ? "Hủy buổi học" : "Xác nhận",
+      danger: action === "CANCEL",
+    });
     if (!reason) return;
     startMutation();
     try {
@@ -353,6 +364,17 @@ export function SessionEditor({
           description="Hủy buổi học là thao tác thay cho xóa cứng để giữ lịch sử và nhật ký."
         >
           <div className="flex flex-wrap gap-3">
+            {session.meetingUrl && actorRole !== "STUDENT" && actorRole !== "PARENT" ? (
+              <a
+                href={session.meetingUrl}
+                target="_blank"
+                rel="noreferrer"
+                className={PRIMARY_BUTTON}
+              >
+                <DoorOpen className="mr-2 size-4" />
+                Vào lớp trực tuyến
+              </a>
+            ) : null}
             {canMarkAttendance ? (
               <Link
                 href={`/dashboard/attendance/${session.id}`}

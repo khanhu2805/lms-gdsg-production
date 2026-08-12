@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useActionDialogs } from "@/components/ui/action-dialogs";
 import { ArchiveRestore, Ban } from "lucide-react";
 
 import {
@@ -45,6 +46,7 @@ export function SubjectEditor({
   entity: unknown;
 }) {
   const router = useRouter();
+  const { requestReason } = useActionDialogs();
   const subject = entity as SubjectDetail | null;
   const creating = mode === "create";
   const [busy, setBusy] = useState(false);
@@ -94,11 +96,16 @@ export function SubjectEditor({
 
   async function toggleActive() {
     if (!subject) return;
-    const reason = window.prompt(
-      subject.isActive
-        ? "Nhập lý do ngừng sử dụng môn học:"
-        : "Nhập lý do kích hoạt lại:",
-    );
+    const reason = await requestReason({
+      title: subject.isActive
+        ? "Ngừng sử dụng môn học"
+        : "Kích hoạt lại môn học",
+      description: subject.isActive
+        ? "Các lớp và lịch sử đang tham chiếu môn học vẫn được giữ nguyên."
+        : "Môn học sẽ được phép sử dụng lại khi tạo hoặc chỉnh sửa lớp.",
+      confirmLabel: subject.isActive ? "Ngừng sử dụng" : "Kích hoạt lại",
+      danger: subject.isActive,
+    });
     if (!reason) return;
     setBusy(true);
     setNotice(undefined);

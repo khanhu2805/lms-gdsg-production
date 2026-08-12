@@ -7,6 +7,7 @@ import { RoleBadge } from "@/components/ui/role-badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { Actor } from "@/lib/auth/actor";
 import { prisma } from "@/lib/database/client";
+import { AppError } from "@/lib/errors/app-error";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { classScopeWhere } from "@/modules/classes/class.repository";
 
@@ -57,9 +58,39 @@ export async function loadSectionData(
   actor: Actor,
   section: string,
   search?: string,
+  options: { page?: number; pageSize?: number; studentId?: string } = {},
 ): Promise<SectionData> {
+  const page = Math.max(1, options.page ?? 1);
+  const pageSize = [20, 50, 100].includes(options.pageSize ?? 20)
+    ? (options.pageSize ?? 20)
+    : 20;
+  const skip = (page - 1) * pageSize;
+  const take = pageSize + 1;
+
+  let parentStudentId: string | undefined;
+  if (actor.role === "PARENT" && options.studentId) {
+    const link = await prisma.parentStudentLink.findFirst({
+      where: {
+        parentId: actor.id,
+        studentId: options.studentId,
+        status: "ACTIVE",
+      },
+      select: { studentId: true },
+    });
+    if (!link) throw new AppError("FORBIDDEN");
+    parentStudentId = link.studentId;
+  }
+
   const classes = await prisma.courseClass.findMany({
-    where: classScopeWhere(actor),
+    where:
+      actor.role === "PARENT" && parentStudentId
+        ? {
+            status: "ACTIVE",
+            students: {
+              some: { studentId: parentStudentId, status: "ACTIVE" },
+            },
+          }
+        : classScopeWhere(actor),
     select: { id: true },
   });
   const classIds = classes.map(({ id }) => id);
@@ -91,7 +122,8 @@ export async function loadSectionData(
         lastLoginAt: true,
       },
       orderBy: [{ role: "asc" }, { name: "asc" }],
-      take: 100,
+      skip,
+      take,
     });
     return {
       columns: [
@@ -124,7 +156,8 @@ export async function loadSectionData(
         : {},
       include: { _count: { select: { classes: true } } },
       orderBy: { name: "asc" },
-      take: 100,
+      skip,
+      take,
     });
     return {
       columns: ["Mã", "Môn học", "Số lớp", "Trạng thái", "Thao tác"],
@@ -165,7 +198,8 @@ export async function loadSectionData(
         _count: { select: { students: { where: { status: "ACTIVE" } } } },
       },
       orderBy: [{ status: "asc" }, { code: "asc" }],
-      take: 100,
+      skip,
+      take,
     });
     return {
       columns: [
@@ -227,7 +261,8 @@ export async function loadSectionData(
         courseClass: { select: { code: true } },
       },
       orderBy: { startAt: "desc" },
-      take: 100,
+      skip,
+      take,
     });
     return {
       columns: [
@@ -310,7 +345,8 @@ export async function loadSectionData(
         classSession: { select: { sessionNumber: true } },
       },
       orderBy: { updatedAt: "desc" },
-      take: 100,
+      skip,
+      take,
     });
     return {
       columns: [
@@ -359,13 +395,15 @@ export async function loadSectionData(
         classSession: { classId: { in: classIds } },
         ...(actor.role === "STUDENT" ? { studentId: actor.id } : {}),
         ...(actor.role === "PARENT"
-          ? {
-              student: {
-                studentParentLinks: {
-                  some: { parentId: actor.id, status: "ACTIVE" },
+          ? parentStudentId
+            ? { studentId: parentStudentId }
+            : {
+                student: {
+                  studentParentLinks: {
+                    some: { parentId: actor.id, status: "ACTIVE" },
+                  },
                 },
-              },
-            }
+              }
           : {}),
         ...(search
           ? {
@@ -391,7 +429,8 @@ export async function loadSectionData(
         },
       },
       orderBy: { createdAt: "desc" },
-      take: 100,
+      skip,
+      take,
     });
     return {
       columns: [
@@ -446,7 +485,7 @@ export async function loadSectionData(
           },
         },
         orderBy: { submittedAt: "desc" },
-        take: 100,
+        take: skip + take,
       }),
       prisma.quizAttempt.findMany({
         where: {
@@ -469,7 +508,7 @@ export async function loadSectionData(
           },
         },
         orderBy: { submittedAt: "desc" },
-        take: 100,
+        take: skip + take,
       }),
     ]);
     const rows = [
@@ -519,7 +558,7 @@ export async function loadSectionData(
           (right.submittedAt?.getTime() ?? 0) -
           (left.submittedAt?.getTime() ?? 0),
       )
-      .slice(0, 100)
+      .slice(skip, skip + take)
       .map(({ id, cells }) => ({ id, cells }));
 
     return {
@@ -552,7 +591,8 @@ export async function loadSectionData(
         requestedBy: { select: { name: true } },
       },
       orderBy: { createdAt: "desc" },
-      take: 100,
+      skip,
+      take,
     });
     return {
       columns: [
@@ -589,7 +629,8 @@ export async function loadSectionData(
         errorMessage: true,
       },
       orderBy: { createdAt: "desc" },
-      take: 100,
+      skip,
+      take,
     });
     const jobs = search
       ? allJobs.filter((job) => job.type.includes(search.trim().toUpperCase()))
@@ -644,7 +685,8 @@ export async function loadSectionData(
         actor: { select: { name: true } },
       },
       orderBy: { createdAt: "desc" },
-      take: 100,
+      skip,
+      take,
     });
     return {
       columns: [
@@ -695,6 +737,8 @@ export async function loadSectionData(
         },
       },
       orderBy: { linkedAt: "desc" },
+      skip,
+      take,
     });
     return {
       columns: ["Học sinh", "Mã", "Lớp đang học", "Liên kết", "Vai trò"],
@@ -720,12 +764,14 @@ export async function loadSectionData(
     const studentIds =
       actor.role === "STUDENT"
         ? [actor.id]
-        : (
-            await prisma.parentStudentLink.findMany({
-              where: { parentId: actor.id, status: "ACTIVE" },
-              select: { studentId: true },
-            })
-          ).map(({ studentId }) => studentId);
+        : parentStudentId
+          ? [parentStudentId]
+          : (
+              await prisma.parentStudentLink.findMany({
+                where: { parentId: actor.id, status: "ACTIVE" },
+                select: { studentId: true },
+              })
+            ).map(({ studentId }) => studentId);
     const [submissions, attempts] = await Promise.all([
       prisma.submission.findMany({
         where: {
@@ -735,6 +781,7 @@ export async function loadSectionData(
         select: {
           id: true,
           finalScore: true,
+          teacherFeedback: true,
           publishedAt: true,
           student: { select: { name: true } },
           assignment: {
@@ -745,6 +792,7 @@ export async function loadSectionData(
           },
         },
         orderBy: { publishedAt: "desc" },
+      take: skip + take,
       }),
       prisma.quizAttempt.findMany({
         where: {
@@ -764,32 +812,53 @@ export async function loadSectionData(
           },
         },
         orderBy: { publishedAt: "desc" },
+      take: skip + take,
       }),
     ]);
+    const rows = [
+      ...submissions.map((result) => ({
+        id: `assignment-${result.id}`,
+        publishedAt: result.publishedAt,
+        cells: [
+          result.student.name,
+          result.assignment.content.title,
+          pill("Bài tập"),
+          `${result.finalScore ?? "—"}/${result.assignment.maxScore}`,
+          result.teacherFeedback?.trim() || "—",
+          formatDateTime(result.publishedAt),
+        ],
+      })),
+      ...attempts.map((result) => ({
+        id: `quiz-${result.id}`,
+        publishedAt: result.publishedAt,
+        cells: [
+          result.student.name,
+          result.quiz.content.title,
+          pill("Bài kiểm tra"),
+          `${result.finalScore ?? "—"}/${result.quiz.maxScore}`,
+          "—",
+          formatDateTime(result.publishedAt),
+        ],
+      })),
+    ]
+      .sort(
+        (left, right) =>
+          (right.publishedAt?.getTime() ?? 0) -
+          (left.publishedAt?.getTime() ?? 0),
+      )
+      .slice(skip, skip + take)
+      .map(({ id, cells }) => ({ id, cells }));
+
     return {
-      columns: ["Học sinh", "Hoạt động", "Loại", "Điểm", "Công bố"],
-      rows: [
-        ...submissions.map((result) => ({
-          id: `assignment-${result.id}`,
-          cells: [
-            result.student.name,
-            result.assignment.content.title,
-            pill("Bài tập"),
-            `${result.finalScore ?? "—"}/${result.assignment.maxScore}`,
-            formatDateTime(result.publishedAt),
-          ],
-        })),
-        ...attempts.map((result) => ({
-          id: `quiz-${result.id}`,
-          cells: [
-            result.student.name,
-            result.quiz.content.title,
-            pill("Bài kiểm tra"),
-            `${result.finalScore ?? "—"}/${result.quiz.maxScore}`,
-            formatDateTime(result.publishedAt),
-          ],
-        })),
+      columns: [
+        "Học sinh",
+        "Hoạt động",
+        "Loại",
+        "Điểm",
+        "Nhận xét",
+        "Công bố",
       ],
+      rows,
     };
   }
 
@@ -799,13 +868,15 @@ export async function loadSectionData(
         recording: { content: { classId: { in: classIds } } },
         ...(actor.role === "STUDENT" ? { userId: actor.id } : {}),
         ...(actor.role === "PARENT"
-          ? {
-              user: {
-                studentParentLinks: {
-                  some: { parentId: actor.id, status: "ACTIVE" },
+          ? parentStudentId
+            ? { userId: parentStudentId }
+            : {
+                user: {
+                  studentParentLinks: {
+                    some: { parentId: actor.id, status: "ACTIVE" },
+                  },
                 },
-              },
-            }
+              }
           : {}),
       },
       select: {
@@ -817,7 +888,8 @@ export async function loadSectionData(
         recording: { select: { content: { select: { title: true } } } },
       },
       orderBy: { lastViewedAt: "desc" },
-      take: 100,
+      skip,
+      take,
     });
     return {
       columns: ["Học sinh", "Video", "Tiến độ", "Hoàn thành", "Xem gần nhất"],

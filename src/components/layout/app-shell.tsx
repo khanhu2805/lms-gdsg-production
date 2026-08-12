@@ -59,7 +59,7 @@ export function AppShell({
           collapsed && "justify-center px-2",
         )}
       >
-        <BrandLogo compact={collapsed} className="brightness-0 invert" />
+        <BrandLogo compact={collapsed} className="h-9/12"/>
       </div>
       <nav
         aria-label="Điều hướng chính"

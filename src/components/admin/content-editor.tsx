@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useActionDialogs } from "@/components/ui/action-dialogs";
 import {
   Archive,
   Check,
@@ -294,6 +295,7 @@ export function ContentEditor({
   defaultClassId?: string;
 }) {
   const router = useRouter();
+  const { requestReason } = useActionDialogs();
   const content = entity as ContentDetail | null;
   const normalizedDefaultType = (
     Object.keys(TYPE_LABELS) as ContentType[]
@@ -550,11 +552,14 @@ export function ContentEditor({
     ].includes(action);
     const explanation =
       requiresComment || requiresReason
-        ? window.prompt(
-            requiresComment
-              ? "Nhập nhận xét duyệt nội dung:"
-              : "Nhập lý do cho thao tác này:",
-          )
+        ? await requestReason({
+            title: requiresComment
+              ? "Nhận xét duyệt nội dung"
+              : actionLabel(action),
+            label: requiresComment ? "Nhận xét" : "Lý do",
+            confirmLabel: actionLabel(action),
+            danger: ["REJECT", "REJECT_REOPEN", "HIDE", "ARCHIVE"].includes(action),
+          })
         : undefined;
     if ((requiresComment || requiresReason) && !explanation) return;
     setBusy(true);

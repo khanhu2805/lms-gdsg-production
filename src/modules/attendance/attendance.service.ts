@@ -178,6 +178,7 @@ export async function markAttendance(
     where: {
       classId: session.classId,
       studentId: input.studentId,
+      status: "ACTIVE",
     },
     select: { id: true },
   });

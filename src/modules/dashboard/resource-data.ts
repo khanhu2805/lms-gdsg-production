@@ -40,6 +40,9 @@ const EMPTY_OPTIONS: ResourcePageData["options"] = {
   users: [],
 };
 
+const FORM_USER_OPTION_LIMIT = 500;
+const FORM_SESSION_OPTION_LIMIT = 500;
+
 function toSerializable<T>(value: T): T {
   return JSON.parse(
     JSON.stringify(value, (_key, item: unknown) =>
@@ -102,7 +105,7 @@ async function loadCommonOptions(actor: Actor) {
           },
           select: { id: true, name: true, email: true, role: true },
           orderBy: [{ role: "asc" }, { name: "asc" }],
-          take: 1000,
+          take: FORM_USER_OPTION_LIMIT,
         })
       : Promise.resolve([]),
   ]);
@@ -124,7 +127,7 @@ async function loadCommonOptions(actor: Actor) {
             courseClass: { select: { code: true } },
           },
           orderBy: [{ startAt: "desc" }],
-          take: 2000,
+          take: FORM_SESSION_OPTION_LIMIT,
         })
       : [];
 
@@ -158,7 +161,26 @@ export async function loadResourcePageData(
   id: string,
 ): Promise<ResourcePageData> {
   const mode = id === "new" ? "create" : "detail";
-  const commonOptions = await loadCommonOptions(actor);
+  const staffRole = [
+    "ADMIN",
+    "MANAGER",
+    "TEACHER",
+    "TEACHING_ASSISTANT",
+  ].includes(actor.role);
+  const optionDrivenSection = [
+    "users",
+    "subjects",
+    "classes",
+    "sessions",
+    "contents",
+    "attendance",
+    "grading",
+    "settings",
+  ].includes(section);
+  const commonOptions =
+    mode === "create" || (staffRole && optionDrivenSection)
+      ? await loadCommonOptions(actor)
+      : EMPTY_OPTIONS;
 
   if (mode === "create") {
     if (["users", "subjects", "classes", "sessions"].includes(section)) {

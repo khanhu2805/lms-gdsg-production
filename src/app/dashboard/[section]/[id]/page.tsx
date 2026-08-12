@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 
 import { ResourceEditor } from "@/components/admin/resource-editor";
+import { LearnerClassDetail } from "@/components/learner/learner-class-detail";
+import { LearnerSessionDetail } from "@/components/learner/learner-session-detail";
 import { requireActor } from "@/lib/auth/actor";
 import { loadResourcePageData } from "@/modules/dashboard/resource-data";
 
@@ -31,6 +33,15 @@ export default async function ResourcePage({
 }) {
   const actor = await requireActor();
   const [{ section, id }, defaults] = await Promise.all([params, searchParams]);
+
+  const isLearner = actor.role === "STUDENT" || actor.role === "PARENT";
+  if (isLearner && id !== "new" && section === "classes") {
+    return <LearnerClassDetail actor={actor} classId={id} />;
+  }
+  if (isLearner && id !== "new" && section === "sessions") {
+    return <LearnerSessionDetail actor={actor} sessionId={id} />;
+  }
+
   const title = TITLES[section];
   if (!title) notFound();
 
