@@ -115,8 +115,8 @@ export default async function ResourcePage({
 }) {
   const actor = await requireActor();
   const [{ section, id }, defaults] = await Promise.all([params, searchParams]);
-  const resourceSection =
-    RESOURCE_SECTION_ALIASES[section] ?? section;
+  // const resourceSection =
+  //   RESOURCE_SECTION_ALIASES[section] ?? section;
 
   const isLearner = actor.role === "STUDENT" || actor.role === "PARENT";
   if (isLearner && id !== "new" && section === "classes") {
