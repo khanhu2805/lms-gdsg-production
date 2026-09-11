@@ -13,6 +13,14 @@ jobs:
   check:
     runs-on: ubuntu-latest
 
+    env:
+      DATABASE_URL: postgresql://lms:build-only@localhost:5432/lms_gdsg?schema=public
+      DIRECT_URL: postgresql://lms:build-only@localhost:5432/lms_gdsg?schema=public
+      BETTER_AUTH_SECRET: build-only-secret-with-more-than-32-characters
+      GOOGLE_CLIENT_ID: build-only-client-id
+      GOOGLE_CLIENT_SECRET: build-only-client-secret
+      OAUTH_TOKEN_ENCRYPTION_KEY: 1111111111111111111111111111111111111111111111111111111111111111
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
