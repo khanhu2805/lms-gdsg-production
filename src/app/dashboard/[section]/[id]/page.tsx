@@ -94,11 +94,11 @@ const TITLES: Record<string, { singular: string; list: string }> = {
   },
 };
 
-const RESOURCE_SECTION_ALIASES: Record<string, string> = {
-  materials: "contents",
-  assignments: "contents",
-  quizzes: "contents",
-};
+// const RESOURCE_SECTION_ALIASES: Record<string, string> = {
+//   materials: "contents",
+//   assignments: "contents",
+//   quizzes: "contents",
+// };
 
 const CONTENT_TYPE_BY_SECTION: Record<string, string> = {
   materials: "MATERIAL",
