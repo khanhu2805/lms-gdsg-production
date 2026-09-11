@@ -9,18 +9,26 @@ concurrency:
   group: production-deploy
   cancel-in-progress: false
 
+env:
+  REGISTRY: ghcr.io
+
 jobs:
+
+  # =====================================================
+  # CHECK CODE
+  # =====================================================
+
   check:
     runs-on: ubuntu-latest
 
     env:
-      DATABASE_URL: postgresql://lms:build-only@localhost:5432/lms_gdsg?schema=public
-      DIRECT_URL: postgresql://lms:build-only@localhost:5432/lms_gdsg?schema=public
-      BETTER_AUTH_SECRET: build-only-secret-with-more-than-32-characters
-      GOOGLE_CLIENT_ID: build-only-client-id
-      GOOGLE_CLIENT_SECRET: build-only-client-secret
+      DATABASE_URL: "postgresql://lms:build-only@localhost:5432/lms_gdsg?schema=public"
+      DIRECT_URL: "postgresql://lms:build-only@localhost:5432/lms_gdsg?schema=public"
+      BETTER_AUTH_SECRET: "build-only-secret-with-more-than-32-characters"
+      GOOGLE_CLIENT_ID: "build-only-client-id"
+      GOOGLE_CLIENT_SECRET: "build-only-client-secret"
       OAUTH_TOKEN_ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-    
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -46,49 +54,169 @@ jobs:
       - name: Test
         run: npm test
 
-  deploy:
+
+  # =====================================================
+  # BUILD DOCKER IMAGES + PUSH GHCR
+  # =====================================================
+
+  build:
     needs: check
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        include:
+
+          - target: runner
+            image: lms-gdsg-production-app
+
+          - target: worker
+            image: lms-gdsg-production-worker
+
+          - target: migrate
+            image: lms-gdsg-production-migrate
+
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.target }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          target: ${{ matrix.target }}
+
+          push: true
+
+          build-args: |
+            NEXT_PUBLIC_APP_URL=https://lms.giaoducsaigon.edu.vn
+
+          tags: |
+            ghcr.io/khanhu2805/${{ matrix.image }}:${{ github.sha }}
+            ghcr.io/khanhu2805/${{ matrix.image }}:latest
+
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+
+          cache-from: |
+            type=gha,scope=${{ matrix.target }}
+
+          cache-to: |
+            type=gha,mode=max,scope=${{ matrix.target }}
+
+
+  # =====================================================
+  # DEPLOY VPS
+  # =====================================================
+
+  deploy:
+    needs:
+      - check
+      - build
+
+    runs-on: ubuntu-latest
+
+    steps:
+
       - name: Configure SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_PORT: ${{ secrets.VPS_PORT }}
+
         run: |
           mkdir -p ~/.ssh
+
           echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+          ssh-keyscan \
+            -p "$VPS_PORT" \
+            -H "$VPS_HOST" \
+            >> ~/.ssh/known_hosts
+
 
       - name: Deploy
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_PORT: ${{ secrets.VPS_PORT }}
+
         run: |
-          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" << 'EOF'
+
+          ssh \
+            -i ~/.ssh/id_ed25519 \
+            -p "$VPS_PORT" \
+            "$VPS_USER@$VPS_HOST" << 'EOF'
+
             set -e
 
             cd /opt/lms-gdsg
 
-            echo "=== Download source ==="
+
+            echo "============================="
+            echo "Update deployment files"
+            echo "============================="
+
             git fetch origin main
             git reset --hard origin/main
 
-            echo "=== Build ==="
-            docker compose build
 
-            echo "=== Database migration ==="
-            docker compose run --rm migrate
+            echo "============================="
+            echo "Use exact Git commit images"
+            echo "============================="
 
-            echo "=== Update application ==="
-            docker compose up -d
+            export IMAGE_TAG="${{ github.sha }}"
 
-            echo "=== Cleanup ==="
+
+            echo "============================="
+            echo "Pull Docker images"
+            echo "============================="
+
+            docker compose pull app worker migrate
+
+
+            echo "============================="
+            echo "Start production"
+            echo "============================="
+
+            docker compose up -d --no-build
+
+
+            echo "============================="
+            echo "Reload Nginx"
+            echo "============================="
+
+            docker compose restart nginx
+
+
+            echo "============================="
+            echo "Cleanup"
+            echo "============================="
+
             docker image prune -f
 
-            echo "=== Status ==="
+
+            echo "============================="
+            echo "Status"
+            echo "============================="
+
             docker compose ps
+
           EOF

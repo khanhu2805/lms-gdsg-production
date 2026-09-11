@@ -60,9 +60,7 @@ services:
     networks: [backend]
 
   migrate:
-    build:
-      context: .
-      target: migrate
+    image: ghcr.io/khanhu2805/lms-gdsg-production-migrate:${IMAGE_TAG:-latest}
     environment: *app-environment
     depends_on:
       db:
@@ -71,9 +69,7 @@ services:
     networks: [backend]
 
   app:
-    build:
-      context: .
-      target: runner
+    image: ghcr.io/khanhu2805/lms-gdsg-production-app:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment: *app-environment
     depends_on:
@@ -99,9 +95,7 @@ services:
     networks: [backend]
 
   worker:
-    build:
-      context: .
-      target: worker
+    image: ghcr.io/khanhu2805/lms-gdsg-production-worker:${IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:
       <<: *app-environment

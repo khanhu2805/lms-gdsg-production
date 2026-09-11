@@ -9,6 +9,7 @@ RUN --mount=type=cache,target=/root/.npm npm ci
 
 FROM deps AS builder
 COPY . .
+ARG NEXT_PUBLIC_APP_URL=https://lms.giaoducsaigon.edu.vn
 ENV DATABASE_URL=postgresql://lms:build-only@localhost:5432/lms_gdsg?schema=public \
     DIRECT_URL=postgresql://lms:build-only@localhost:5432/lms_gdsg?schema=public \
     BETTER_AUTH_SECRET=build-only-secret-with-more-than-32-characters \
