@@ -9,7 +9,9 @@ RUN --mount=type=cache,target=/root/.npm npm ci
 
 FROM deps AS builder
 COPY . .
-ENV BETTER_AUTH_SECRET=build-only-secret-with-more-than-32-characters \
+ENV DATABASE_URL=postgresql://lms:build-only@localhost:5432/lms_gdsg?schema=public \
+    DIRECT_URL=postgresql://lms:build-only@localhost:5432/lms_gdsg?schema=public \
+    BETTER_AUTH_SECRET=build-only-secret-with-more-than-32-characters \
     GOOGLE_CLIENT_ID=build-only-client-id \
     GOOGLE_CLIENT_SECRET=build-only-client-secret \
     OAUTH_TOKEN_ENCRYPTION_KEY=1111111111111111111111111111111111111111111111111111111111111111
@@ -38,7 +40,9 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 COPY . .
-RUN npm run db:generate
+RUN DATABASE_URL=postgresql://lms:build-only@localhost:5432/lms_gdsg?schema=public \
+    DIRECT_URL=postgresql://lms:build-only@localhost:5432/lms_gdsg?schema=public \
+    npm run db:generate
 RUN groupadd --system --gid 1001 nodejs \
     && useradd --system --uid 1001 --gid nodejs worker \
     && mkdir -p /data/lms/recordings /data/lms/documents /data/lms/submissions /data/lms/images /data/lms/thumbnails /data/lms/reports /data/lms/temp /data/lms/backups \
@@ -48,5 +52,7 @@ CMD ["npm", "run", "worker"]
 
 FROM deps AS migrate
 COPY . .
-RUN npm run db:generate
+RUN DATABASE_URL=postgresql://lms:build-only@localhost:5432/lms_gdsg?schema=public \
+    DIRECT_URL=postgresql://lms:build-only@localhost:5432/lms_gdsg?schema=public \
+    npm run db:generate
 CMD ["npm", "run", "db:deploy"]
