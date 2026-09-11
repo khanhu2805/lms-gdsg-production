@@ -69,7 +69,7 @@ export async function authorizeRecordingPlayback(
   if (!session) {
     session = await prisma.$transaction(
       async (tx) => {
-        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`video:${actor.id}`}))`;
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`video:${actor.id}`}))`;
         const activeSessions = await tx.videoViewSession.count({
           where: {
             userId: actor.id,

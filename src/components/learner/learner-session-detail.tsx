@@ -45,7 +45,7 @@ export async function LearnerSessionDetail({ actor, sessionId }: { actor: Actor;
         {actor.role === "STUDENT" ? (
           <div className="mt-5">
             {canJoin ? <Link href={`/student/sessions/${session.id}/join`} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#243467] px-4 text-sm font-semibold text-white hover:bg-[#17244D]"><DoorOpen className="size-4" /> Vào lớp</Link> : <span className="inline-flex min-h-11 items-center rounded-xl bg-[#F2F4F7] px-4 text-sm font-semibold text-[#667085]">Nút Vào lớp mở từ {env.ATTENDANCE_EARLY_MINUTES} phút trước giờ học</span>}
-            <p className="mt-2 text-xs leading-5 text-[#667085]">Việc nhấn “Vào lớp” chỉ ghi nhận thời điểm bạn mở phòng học; không chứng minh toàn bộ thời lượng tham gia.</p>
+            {/* <p className="mt-2 text-xs leading-5 text-[#667085]">Việc nhấn “Vào lớp” chỉ ghi nhận thời điểm bạn mở phòng học; không chứng minh toàn bộ thời lượng tham gia.</p> */}
           </div>
         ) : null}
       </section>
