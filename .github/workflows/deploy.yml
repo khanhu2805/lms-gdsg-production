@@ -19,7 +19,7 @@ jobs:
       BETTER_AUTH_SECRET: build-only-secret-with-more-than-32-characters
       GOOGLE_CLIENT_ID: build-only-client-id
       GOOGLE_CLIENT_SECRET: build-only-client-secret
-      OAUTH_TOKEN_ENCRYPTION_KEY: 1111111111111111111111111111111111111111111111111111111111111111
+      OAUTH_TOKEN_ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
     
     steps:
       - name: Checkout
