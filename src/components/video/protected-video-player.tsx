@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
-import { LoaderCircle, Play, ShieldCheck } from "lucide-react";
+import { LoaderCircle, Play } from "lucide-react";
 
 type PlaybackData = {
   streamUrl: string;
@@ -188,13 +188,13 @@ export function ProtectedVideoPlayer({
           {error}
         </p>
       ) : null}
-      <div className="mt-4 flex items-start gap-3 rounded-xl border border-[#E4E7EC] bg-white p-4">
+      {/* <div className="mt-4 flex items-start gap-3 rounded-xl border border-[#E4E7EC] bg-white p-4">
         <ShieldCheck className="mt-0.5 size-5 shrink-0 text-[#4059A5]" />
         <p className="text-xs leading-5 text-[#667085]">
           Video được cấp quyền theo phiên và gắn watermark động. Không thể ngăn
           tuyệt đối việc quay màn hình trên thiết bị người dùng.
         </p>
-      </div>
+      </div> */}
     </section>
   );
 }

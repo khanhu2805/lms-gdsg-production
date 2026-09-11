@@ -179,7 +179,7 @@ export async function persistProtectedUpload(input: {
   const storageKey = protectedStorageKey(destination);
 
   await mkdir(directory, { recursive: true });
-  await writeFile(destination, input.buffer, { flag: "wx", mode: 0o640 });
+  await writeFile(destination, input.buffer, { flag: "wx", mode: 0o644 });
 
   return storageKey;
 }
@@ -219,8 +219,8 @@ export async function persistStreamingVideoUpload(input: {
     throw new AppError("VALIDATION_ERROR", "Đường dẫn tạm không hợp lệ.");
   }
 
-  await mkdir(temporaryDirectory, { recursive: true });
-  const handle = await open(temporaryPath, "wx", 0o640);
+  await mkdir(temporaryDirectory, { recursive: true, mode: 0o755 });
+  const handle = await open(temporaryPath, "wx", 0o644);
   const reader = input.body.getReader();
   const checksum = createHash("sha256");
   const signatureChunks: Buffer[] = [];
@@ -328,7 +328,7 @@ export async function persistStreamingVideoUpload(input: {
     }
     const storageKey = protectedStorageKey(destination);
 
-    await mkdir(recordingDirectory, { recursive: true });
+    await mkdir(recordingDirectory, { recursive: true, mode: 0o755 });
     await rename(temporaryPath, destination);
     return {
       storageKey,

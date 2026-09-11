@@ -550,19 +550,40 @@ async function finalizeAttendance(sessionId: string) {
 async function deleteProtectedFile(payload: JsonObject) {
   const assetId =
     typeof payload.assetId === "string" ? payload.assetId : undefined;
+
   const asset = assetId
-    ? await prisma.asset.findUnique({ where: { id: assetId } })
+    ? await prisma.asset.findUnique({
+        where: { id: assetId },
+      })
     : null;
-  const storageKey = asset?.storageKey ?? requiredString(payload, "storageKey");
+
+  const storageKey =
+    asset?.storageKey ?? requiredString(payload, "storageKey");
+
+  const recursive = payload.recursive === true;
+
   const target = safeStoragePath(storageKey);
-  await rm(target, { force: true });
+
+  await rm(target, {
+    force: true,
+    recursive,
+  });
+
   if (asset) {
     await prisma.asset.update({
       where: { id: asset.id },
-      data: { status: "DELETED", deletedAt: new Date() },
+      data: {
+        status: "DELETED",
+        deletedAt: new Date(),
+      },
     });
   }
-  return { storageKey, deleted: true };
+
+  return {
+    storageKey,
+    deleted: true,
+    recursive,
+  };
 }
 
 async function cleanTempFiles() {

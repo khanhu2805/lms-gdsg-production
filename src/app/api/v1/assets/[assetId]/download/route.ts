@@ -13,7 +13,7 @@ export async function GET(
     const { assetId } = await params;
     const asset = await authorizeAssetDownload(actor, assetId);
     return new Response(null, {
-      status: 204,
+      status: 200,
       headers: {
         "X-Accel-Redirect": asset.internalPath,
         "Content-Type": asset.mimeType,

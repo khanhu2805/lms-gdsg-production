@@ -34,6 +34,11 @@ type UpdateContentInput = z.infer<typeof updateContentSchema>;
 
 type TransactionClient = Prisma.TransactionClient;
 
+type CleanupTarget = {
+  storageKey: string;
+  recursive?: boolean;
+};
+
 const contentRelations = {
   lesson: true,
   material: true,
@@ -68,6 +73,429 @@ function assertQuestionScore(
       { questionTotal: total, maxScore },
     );
   }
+}
+
+async function purgeUnusedAsset(
+  tx: TransactionClient,
+  assetId: string | null | undefined,
+  cleanupTargets: CleanupTarget[],
+) {
+  if (!assetId) return;
+
+  const asset = await tx.asset.findUnique({
+    where: { id: assetId },
+    select: {
+      id: true,
+      storageKey: true,
+      _count: {
+        select: {
+          recordingSources: true,
+          recordingThumbnails: true,
+          materials: true,
+          submissionFiles: true,
+          reports: true,
+        },
+      },
+    },
+  });
+
+  if (!asset) return;
+
+  const stillUsed =
+    asset._count.recordingSources > 0 ||
+    asset._count.recordingThumbnails > 0 ||
+    asset._count.materials > 0 ||
+    asset._count.submissionFiles > 0 ||
+    asset._count.reports > 0;
+
+  if (stillUsed) return;
+
+  await tx.asset.delete({
+    where: { id: asset.id },
+  });
+
+  cleanupTargets.push({
+    storageKey: asset.storageKey,
+  });
+}
+
+export async function purgeContent(
+  actor: Actor,
+  contentId: string,
+  reason: string,
+  context?: RequestContext,
+) {
+  if (actor.role !== "ADMIN") {
+    throw new AppError(
+      "FORBIDDEN",
+      "Chỉ quản trị viên được phép xóa vĩnh viễn nội dung.",
+    );
+  }
+
+  return prisma.$transaction(
+    async (tx) => {
+      // Khóa record trong thời gian purge
+      await tx.$queryRaw`
+        SELECT "id"
+        FROM "contents"
+        WHERE "id" = ${contentId}::uuid
+        FOR UPDATE
+      `;
+
+      const content = await tx.content.findUnique({
+        where: { id: contentId },
+        include: {
+          nextVersion: {
+            select: { id: true },
+          },
+          lesson: {
+            select: { id: true },
+          },
+          material: {
+            select: {
+              id: true,
+              assetId: true,
+            },
+          },
+          recording: {
+            select: {
+              id: true,
+              assetId: true,
+              thumbnailAssetId: true,
+              hlsManifestKey: true,
+            },
+          },
+          assignment: {
+            select: {
+              id: true,
+            },
+          },
+          quiz: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      });
+
+      if (!content) {
+        throw new AppError("NOT_FOUND");
+      }
+
+      /*
+       * Nếu version này đang là cha của version mới hơn thì không xóa,
+       * tránh phá chuỗi version.
+       */
+      if (content.nextVersion) {
+        throw new AppError(
+          "CONFLICT",
+          "Nội dung này có phiên bản mới hơn. Hãy xóa phiên bản mới nhất trước.",
+        );
+      }
+
+      const cleanupTargets: CleanupTarget[] = [];
+      const candidateAssetIds = new Set<string>();
+
+      /*
+       * ============================================================
+       * VIDEO
+       * ============================================================
+       */
+
+      if (content.recording) {
+        const recording = content.recording;
+
+        candidateAssetIds.add(recording.assetId);
+
+        if (recording.thumbnailAssetId) {
+          candidateAssetIds.add(recording.thumbnailAssetId);
+        }
+
+        // Xóa lịch sử xem video
+        await tx.videoProgress.deleteMany({
+          where: {
+            recordingId: recording.id,
+          },
+        });
+
+        await tx.videoViewSession.deleteMany({
+          where: {
+            recordingId: recording.id,
+          },
+        });
+
+        /*
+         * Xóa các job xử lý video cũ.
+         *
+         * Dùng executeRaw, không dùng queryRaw vì đây là DELETE.
+         */
+        await tx.$executeRaw`
+          DELETE FROM "jobs"
+          WHERE "payload"->>'recordingId' = ${recording.id}
+            AND "type"::text IN (
+              'PROCESS_VIDEO',
+              'CREATE_THUMBNAIL',
+              'GENERATE_HLS'
+            )
+        `;
+
+        await tx.recording.delete({
+          where: {
+            id: recording.id,
+          },
+        });
+
+        /*
+         * HLS không phải Asset.
+         *
+         * Chỉ xóa thư mục HLS nếu không còn Recording nào khác
+         * tham chiếu cùng manifest.
+         */
+        if (recording.hlsManifestKey) {
+          const remaining = await tx.recording.count({
+            where: {
+              hlsManifestKey: recording.hlsManifestKey,
+            },
+          });
+
+          if (remaining === 0) {
+            const slashIndex =
+              recording.hlsManifestKey.lastIndexOf("/");
+
+            if (slashIndex > 0) {
+              cleanupTargets.push({
+                storageKey:
+                  recording.hlsManifestKey.slice(0, slashIndex),
+                recursive: true,
+              });
+            }
+          }
+        }
+      }
+
+      /*
+       * ============================================================
+       * MATERIAL
+       * ============================================================
+       */
+
+      if (content.material) {
+        candidateAssetIds.add(content.material.assetId);
+
+        await tx.material.delete({
+          where: {
+            id: content.material.id,
+          },
+        });
+      }
+
+      /*
+       * ============================================================
+       * ASSIGNMENT
+       * ============================================================
+       */
+
+      if (content.assignment) {
+        const assignmentId = content.assignment.id;
+
+        /*
+         * Lấy asset của file học sinh nộp trước khi xóa relation.
+         */
+        const submissionFiles = await tx.submissionFile.findMany({
+          where: {
+            submission: {
+              assignmentId,
+            },
+          },
+          select: {
+            assetId: true,
+          },
+        });
+
+        for (const file of submissionFiles) {
+          candidateAssetIds.add(file.assetId);
+        }
+
+        /*
+         * SubmissionFile dùng Restrict nên phải xóa trước Submission.
+         */
+        await tx.submissionFile.deleteMany({
+          where: {
+            submission: {
+              assignmentId,
+            },
+          },
+        });
+
+        /*
+         * SubmissionAnswer sẽ cascade khi Submission bị xóa.
+         */
+        await tx.submission.deleteMany({
+          where: {
+            assignmentId,
+          },
+        });
+
+        /*
+         * Question/Choice dùng Cascade từ Assignment.
+         */
+        await tx.assignment.delete({
+          where: {
+            id: assignmentId,
+          },
+        });
+      }
+
+      /*
+       * ============================================================
+       * QUIZ
+       * ============================================================
+       */
+
+      if (content.quiz) {
+        const quizId = content.quiz.id;
+
+        /*
+         * QuizAnswer cascade theo QuizAttempt.
+         */
+        await tx.quizAttempt.deleteMany({
+          where: {
+            quizId,
+          },
+        });
+
+        /*
+         * Question/Choice cascade khi Quiz bị xóa.
+         */
+        await tx.quiz.delete({
+          where: {
+            id: quizId,
+          },
+        });
+      }
+
+      /*
+       * ============================================================
+       * LESSON
+       * ============================================================
+       */
+
+      if (content.lesson) {
+        await tx.lesson.delete({
+          where: {
+            id: content.lesson.id,
+          },
+        });
+      }
+
+      /*
+       * ============================================================
+       * WORKFLOW DATA
+       * ============================================================
+       */
+
+      await tx.contentReview.deleteMany({
+        where: {
+          contentId,
+        },
+      });
+
+      await tx.contentReopenRequest.deleteMany({
+        where: {
+          contentId,
+        },
+      });
+
+      /*
+       * Audit trước khi xóa Content.
+       *
+       * AuditLog không có FK về Content nên có thể giữ lại
+       * để biết ai đã xóa cái gì.
+       */
+      await writeAuditLog(tx, {
+        actorId: actor.id,
+        actorRole: actor.role,
+        action: "CONTENT_PERMANENTLY_DELETED",
+        entityType: "Content",
+        entityId: content.id,
+        oldValue: {
+          id: content.id,
+          classId: content.classId,
+          classSessionId: content.classSessionId,
+          creatorId: content.creatorId,
+          creatorRole: content.creatorRole,
+          type: content.type,
+          title: content.title,
+          description: content.description,
+          publicationStatus: content.publicationStatus,
+          version: content.version,
+          previousVersionId: content.previousVersionId,
+          publishedAt: content.publishedAt,
+          createdAt: content.createdAt,
+        },
+        reason,
+        context,
+      });
+
+      /*
+       * ============================================================
+       * CONTENT
+       * ============================================================
+       */
+
+      await tx.content.delete({
+        where: {
+          id: content.id,
+        },
+      });
+
+      /*
+       * ============================================================
+       * ASSETS
+       * ============================================================
+       *
+       * Asset có thể được nhiều version dùng chung.
+       * Chỉ xóa Asset khi không còn relation nào sử dụng.
+       */
+
+      for (const assetId of candidateAssetIds) {
+        await purgeUnusedAsset(
+          tx,
+          assetId,
+          cleanupTargets,
+        );
+      }
+
+      /*
+       * Không xóa file trực tiếp trong transaction DB.
+       *
+       * Tạo job để worker xóa file sau khi transaction commit.
+       * Như vậy database không bị rollback sau khi file đã biến mất.
+       */
+
+      for (const target of cleanupTargets) {
+        await tx.job.create({
+          data: {
+            type: "DELETE_FILE",
+            payload: {
+              storageKey: target.storageKey,
+              recursive: target.recursive ?? false,
+            },
+          },
+        });
+      }
+
+      return {
+        id: content.id,
+        title: content.title,
+        deleted: true,
+        cleanupQueued: cleanupTargets.length,
+      };
+    },
+    {
+      isolationLevel: "Serializable",
+    },
+  );
 }
 
 export async function createContent(
@@ -746,6 +1174,7 @@ async function cloneContentVersion(
 
   return next;
 }
+
 
 export async function executeContentWorkflow(
   actor: Actor,

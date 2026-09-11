@@ -195,3 +195,11 @@ export const updateContentSchema = z.intersection(
     reason: z.string().trim().min(3).max(1000),
   }),
 );
+
+export const purgeContentSchema = z.object({
+  reason: z
+    .string()
+    .trim()
+    .min(3, "Vui lòng nhập lý do xóa.")
+    .max(1000),
+});

@@ -160,17 +160,17 @@ function emptyQuestion(quiz: boolean, deterministic = false): EditorQuestion {
     required: true,
     choices: quiz
       ? [
-          {
-            key: deterministic ? "choice-1" : localKey(),
-            content: "",
-            isCorrect: true,
-          },
-          {
-            key: deterministic ? "choice-2" : localKey(),
-            content: "",
-            isCorrect: false,
-          },
-        ]
+        {
+          key: deterministic ? "choice-1" : localKey(),
+          content: "",
+          isCorrect: true,
+        },
+        {
+          key: deterministic ? "choice-2" : localKey(),
+          content: "",
+          isCorrect: false,
+        },
+      ]
       : [],
   };
 }
@@ -295,7 +295,10 @@ export function ContentEditor({
   defaultClassId?: string;
 }) {
   const router = useRouter();
-  const { requestReason } = useActionDialogs();
+  const {
+    requestReason,
+    confirmAction,
+  } = useActionDialogs();
   const content = entity as ContentDetail | null;
   const normalizedDefaultType = (
     Object.keys(TYPE_LABELS) as ContentType[]
@@ -324,12 +327,12 @@ export function ContentEditor({
     (content &&
       (actorRole === "ADMIN" || actorRole === "MANAGER"
         ? ["DRAFT", "CHANGES_REQUESTED", "APPROVED", "REOPENED"].includes(
-            content.publicationStatus,
-          )
+          content.publicationStatus,
+        )
         : actorId === content.creatorId &&
-          ["DRAFT", "CHANGES_REQUESTED", "REOPENED"].includes(
-            content.publicationStatus,
-          )));
+        ["DRAFT", "CHANGES_REQUESTED", "REOPENED"].includes(
+          content.publicationStatus,
+        )));
   const workflowActions = content
     ? availableWorkflowActions(actorId, actorRole, content)
     : [];
@@ -352,13 +355,13 @@ export function ContentEditor({
     const choices = objective
       ? nextType === "TRUE_FALSE"
         ? [
-            { key: localKey(), content: "Đúng", isCorrect: true },
-            { key: localKey(), content: "Sai", isCorrect: false },
-          ]
+          { key: localKey(), content: "Đúng", isCorrect: true },
+          { key: localKey(), content: "Sai", isCorrect: false },
+        ]
         : [
-            { key: localKey(), content: "", isCorrect: true },
-            { key: localKey(), content: "", isCorrect: false },
-          ]
+          { key: localKey(), content: "", isCorrect: true },
+          { key: localKey(), content: "", isCorrect: false },
+        ]
       : [];
     updateQuestion(index, { type: nextType, choices });
   }
@@ -509,9 +512,9 @@ export function ContentEditor({
         payload,
         ...(content
           ? {
-              expectedUpdatedAt: content.updatedAt,
-              reason: String(formData.get("reason") ?? ""),
-            }
+            expectedUpdatedAt: content.updatedAt,
+            reason: String(formData.get("reason") ?? ""),
+          }
           : {}),
       };
       if (content) {
@@ -553,13 +556,13 @@ export function ContentEditor({
     const explanation =
       requiresComment || requiresReason
         ? await requestReason({
-            title: requiresComment
-              ? "Nhận xét duyệt nội dung"
-              : actionLabel(action),
-            label: requiresComment ? "Nhận xét" : "Lý do",
-            confirmLabel: actionLabel(action),
-            danger: ["REJECT", "REJECT_REOPEN", "HIDE", "ARCHIVE"].includes(action),
-          })
+          title: requiresComment
+            ? "Nhận xét duyệt nội dung"
+            : actionLabel(action),
+          label: requiresComment ? "Nhận xét" : "Lý do",
+          confirmLabel: actionLabel(action),
+          danger: ["REJECT", "REJECT_REOPEN", "HIDE", "ARCHIVE"].includes(action),
+        })
         : undefined;
     if ((requiresComment || requiresReason) && !explanation) return;
     setBusy(true);
@@ -588,6 +591,61 @@ export function ContentEditor({
       setNotice({
         message:
           error instanceof Error ? error.message : "Không thể đổi trạng thái.",
+        tone: "error",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function permanentlyDelete() {
+    if (!content || actorRole !== "ADMIN") return;
+
+    const confirmed = await confirmAction({
+      title: "Xóa vĩnh viễn nội dung?",
+      description:
+        "Thao tác này sẽ xóa nội dung, dữ liệu học tập liên quan và các file không còn được sử dụng. Không thể khôi phục sau khi xóa.",
+      confirmLabel: "Tiếp tục xóa",
+      danger: true,
+    });
+
+    if (!confirmed) return;
+
+    const reason = await requestReason({
+      title: "Xác nhận xóa vĩnh viễn",
+      description:
+        "Hãy nhập lý do xóa. Thông tin này sẽ được giữ lại trong nhật ký kiểm toán.",
+      label: "Lý do xóa",
+      placeholder: "Ví dụ: Tài liệu tải nhầm...",
+      confirmLabel: "Xóa vĩnh viễn",
+      danger: true,
+      minLength: 3,
+    });
+
+    if (!reason) return;
+
+    setBusy(true);
+    setNotice(undefined);
+
+    try {
+      await apiRequest(
+        `/api/v1/contents/${content.id}`,
+        {
+          method: "DELETE",
+          ...jsonRequest({
+            reason,
+          }),
+        },
+      );
+
+      router.push("/dashboard/contents");
+      router.refresh();
+    } catch (error) {
+      setNotice({
+        message:
+          error instanceof Error
+            ? error.message
+            : "Không thể xóa nội dung.",
         tone: "error",
       });
     } finally {
@@ -1194,6 +1252,27 @@ export function ContentEditor({
         )}
       </SectionCard>
 
+      {actorRole === "ADMIN" ? (
+        <SectionCard
+          title="Vùng nguy hiểm"
+          description="Xóa vĩnh viễn sẽ loại bỏ nội dung và dữ liệu liên quan. Thao tác này không thể hoàn tác."
+        >
+          <button
+            type="button"
+            disabled={busy}
+            onClick={permanentlyDelete}
+            className={DANGER_BUTTON}
+          >
+            <Trash2 className="mr-2 size-4" />
+            <BusyLabel
+              busy={busy}
+              idle="Xóa vĩnh viễn"
+              working="Đang xóa…"
+            />
+          </button>
+        </SectionCard>
+      ) : null}
+      
       <SectionCard title="Lịch sử duyệt">
         {content.reviews?.length ? (
           <div className="space-y-3">
