@@ -57,7 +57,11 @@ type EditorQuestion = {
 type ContentPayload = {
   assetId?: string;
   recordingId?: string;
+  materialId?: string;
+  previewStatus?: string;
+  previewError?: string | null;
   processingStatus?: string;
+  viewUrl?: string;
   downloadUrl?: string;
   markdownContent?: string;
   learningObjectives?: string[];
@@ -700,7 +704,7 @@ export function ContentEditor({
               accept={
                 type === "VIDEO"
                   ? "video/mp4,video/webm,video/quicktime"
-                  : ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt"
+                  : ".pdf,.docx,.pptx,.xlsx,.txt,.jpg,.jpeg,.png,.webp"
               }
               className={INPUT_CLASS}
             />
@@ -723,10 +727,50 @@ export function ContentEditor({
               </Field>
             </div>
           ) : null}
-          {content && payload?.downloadUrl ? (
-            <Link href={payload.downloadUrl} className={SECONDARY_BUTTON}>
-              Tải file hiện tại
-            </Link>
+          {content &&
+            type === "MATERIAL" ? (
+            <div className="space-y-3">
+              <p className="rounded-xl bg-[#F2F4F7] p-4 text-sm text-[#475467]">
+                Trạng thái bản xem:{" "}
+                <strong>
+                  {payload?.previewStatus ??
+                    "—"}
+                </strong>
+
+                {payload?.previewError ? (
+                  <>
+                    <br />
+                    Lỗi:{" "}
+                    {payload.previewError}
+                  </>
+                ) : null}
+              </p>
+
+              <div className="flex flex-wrap gap-3">
+                {payload?.viewUrl ? (
+                  <Link
+                    href={payload.viewUrl}
+                    target="_blank"
+                    className={
+                      SECONDARY_BUTTON
+                    }
+                  >
+                    Xem tài liệu
+                  </Link>
+                ) : null}
+
+                {payload?.downloadUrl ? (
+                  <Link
+                    href={payload.downloadUrl}
+                    className={
+                      SECONDARY_BUTTON
+                    }
+                  >
+                    Tải file gốc
+                  </Link>
+                ) : null}
+              </div>
+            </div>
           ) : null}
           {content && type === "VIDEO" ? (
             <p className="rounded-xl bg-[#F2F4F7] p-4 text-sm text-[#475467]">
@@ -1272,7 +1316,7 @@ export function ContentEditor({
           </button>
         </SectionCard>
       ) : null}
-      
+
       <SectionCard title="Lịch sử duyệt">
         {content.reviews?.length ? (
           <div className="space-y-3">

@@ -87,6 +87,16 @@ export const ContentType = {
 export type ContentType = (typeof ContentType)[keyof typeof ContentType]
 
 
+export const MaterialPreviewStatus = {
+  PENDING: 'PENDING',
+  PROCESSING: 'PROCESSING',
+  READY: 'READY',
+  FAILED: 'FAILED'
+} as const
+
+export type MaterialPreviewStatus = (typeof MaterialPreviewStatus)[keyof typeof MaterialPreviewStatus]
+
+
 export const ContentPublicationStatus = {
   DRAFT: 'DRAFT',
   PENDING_TEACHER_REVIEW: 'PENDING_TEACHER_REVIEW',
@@ -256,7 +266,8 @@ export const JobType = {
   DELETE_FILE: 'DELETE_FILE',
   GENERATE_REPORT: 'GENERATE_REPORT',
   FINALIZE_ATTENDANCE: 'FINALIZE_ATTENDANCE',
-  CLEAN_TEMP_FILES: 'CLEAN_TEMP_FILES'
+  CLEAN_TEMP_FILES: 'CLEAN_TEMP_FILES',
+  GENERATE_DOCUMENT_PREVIEW: 'GENERATE_DOCUMENT_PREVIEW'
 } as const
 
 export type JobType = (typeof JobType)[keyof typeof JobType]

@@ -58,7 +58,7 @@ const SECTION_COPY: Record<
   },
   materials: {
     title: "Tài liệu học tập",
-    description: "Quản lý tệp đính kèm được bảo vệ theo lớp và buổi học.",
+    description: "Xem tài liệu học tập được cung cấp theo từng lớp và buổi học.",
     action: "Tải tài liệu lên",
   },
   lessons: {
@@ -203,30 +203,43 @@ export default async function SectionPage({
     "assignments",
     "quizzes",
   ]);
-  const learnerCanOpen =
-    (actor.role === "STUDENT" || actor.role === "PARENT") &&
-    learnerOpenSections.has(section);
-  const tableColumns = learnerCanOpen
+  const isLearner =
+    actor.role === "STUDENT" || actor.role === "PARENT";
+
+  const contentSections = new Set([
+    "lessons",
+    "videos",
+    "materials",
+    "assignments",
+    "quizzes",
+  ]);
+
+  const canOpen =
+    (isLearner && learnerOpenSections.has(section)) ||
+    (!isLearner && contentSections.has(section));
+  const tableColumns = canOpen
     ? [...data.columns, "Thao tác"]
     : data.columns;
-  const tableRows = learnerCanOpen
+  const tableRows = canOpen
     ? visibleRows.map((row) => ({
-        ...row,
-        cells: [
-          ...row.cells,
-          <Link
-            key={`open-${row.id}`}
-            href={
-              section === "classes"
-                ? `/dashboard/classes/${row.id}`
-                : `/dashboard/learn/${row.id}`
-            }
-            className="inline-flex min-h-9 items-center rounded-lg border border-[#D0D5DD] bg-white px-3 text-xs font-semibold text-[#344054] hover:bg-[#F9FAFB]"
-          >
-            Mở
-          </Link>,
-        ],
-      }))
+      ...row,
+      cells: [
+        ...row.cells,
+        <Link
+          key={`open-${row.id}`}
+          href={
+            section === "classes"
+              ? `/dashboard/classes/${row.id}`
+              : isLearner
+                ? `/dashboard/learn/${row.id}`
+                : `/dashboard/contents/${row.id}`
+          }
+          className="inline-flex min-h-9 items-center rounded-lg border border-[#D0D5DD] bg-white px-3 text-xs font-semibold text-[#344054] hover:bg-[#F9FAFB]"
+        >
+          Mở
+        </Link>,
+      ],
+    }))
     : visibleRows;
 
   const canCreate =

@@ -33,7 +33,42 @@ export default async function LearnerContentPage({ params }: { params: Promise<{
 
       {content.type === "LESSON" && payload ? <article className="prose prose-slate max-w-none rounded-2xl border border-[#E4E7EC] bg-white p-5 sm:p-7"><ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{String(payload.markdownContent ?? "")}</ReactMarkdown></article> : null}
 
-      {content.type === "MATERIAL" && payload ? <section className="rounded-2xl border border-[#E4E7EC] bg-white p-5 sm:p-6"><h2 className="font-semibold text-[#172033]">Tài liệu học tập</h2><p className="mt-2 text-sm text-[#667085]">{String(payload.title ?? content.title)}</p><a href={String(payload.downloadUrl)} className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-[#243467] px-4 text-sm font-semibold text-white hover:bg-[#17244D]">Mở tài liệu</a></section> : null}
+      {content.type === "MATERIAL" && payload ? (
+        <section className="overflow-hidden rounded-2xl border border-[#E4E7EC] bg-white">
+          <div className="border-b border-[#E4E7EC] p-5 sm:p-6">
+            <h2 className="font-semibold text-[#172033]">
+              Tài liệu học tập
+            </h2>
+
+            <p className="mt-2 text-sm text-[#667085]">
+              {String(
+                payload.title ??
+                content.title,
+              )}
+            </p>
+          </div>
+
+          {payload.previewStatus ===
+            "READY" &&
+            payload.viewUrl ? (
+            <iframe
+              src={`${String(
+                payload.viewUrl,
+              )}#toolbar=0&navpanes=0`}
+              title={String(
+                payload.title ??
+                content.title,
+              )}
+              className="h-[75vh] min-h-[600px] w-full border-0"
+            />
+          ) : (
+            <div className="p-6 text-sm text-[#667085]">
+              Tài liệu đang được xử lý.
+              Vui lòng quay lại sau.
+            </div>
+          )}
+        </section>
+      ) : null}
 
       {content.type === "VIDEO" && payload ? <ProtectedVideoPlayer recordingId={String(payload.recordingId)} trackProgress={actor.role === "STUDENT"} /> : null}
 

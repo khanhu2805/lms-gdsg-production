@@ -565,6 +565,23 @@ export type EnumVideoViewSessionStatusWithAggregatesFilter<$PrismaModel = never>
   _max?: Prisma.NestedEnumVideoViewSessionStatusFilter<$PrismaModel>
 }
 
+export type EnumMaterialPreviewStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.MaterialPreviewStatus | Prisma.EnumMaterialPreviewStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.MaterialPreviewStatus[] | Prisma.ListEnumMaterialPreviewStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.MaterialPreviewStatus[] | Prisma.ListEnumMaterialPreviewStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumMaterialPreviewStatusFilter<$PrismaModel> | $Enums.MaterialPreviewStatus
+}
+
+export type EnumMaterialPreviewStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.MaterialPreviewStatus | Prisma.EnumMaterialPreviewStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.MaterialPreviewStatus[] | Prisma.ListEnumMaterialPreviewStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.MaterialPreviewStatus[] | Prisma.ListEnumMaterialPreviewStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumMaterialPreviewStatusWithAggregatesFilter<$PrismaModel> | $Enums.MaterialPreviewStatus
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumMaterialPreviewStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumMaterialPreviewStatusFilter<$PrismaModel>
+}
+
 export type EnumQuestionTypeFilter<$PrismaModel = never> = {
   equals?: $Enums.QuestionType | Prisma.EnumQuestionTypeFieldRefInput<$PrismaModel>
   in?: $Enums.QuestionType[] | Prisma.ListEnumQuestionTypeFieldRefInput<$PrismaModel>
@@ -1439,6 +1456,23 @@ export type NestedEnumVideoViewSessionStatusWithAggregatesFilter<$PrismaModel = 
   _count?: Prisma.NestedIntFilter<$PrismaModel>
   _min?: Prisma.NestedEnumVideoViewSessionStatusFilter<$PrismaModel>
   _max?: Prisma.NestedEnumVideoViewSessionStatusFilter<$PrismaModel>
+}
+
+export type NestedEnumMaterialPreviewStatusFilter<$PrismaModel = never> = {
+  equals?: $Enums.MaterialPreviewStatus | Prisma.EnumMaterialPreviewStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.MaterialPreviewStatus[] | Prisma.ListEnumMaterialPreviewStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.MaterialPreviewStatus[] | Prisma.ListEnumMaterialPreviewStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumMaterialPreviewStatusFilter<$PrismaModel> | $Enums.MaterialPreviewStatus
+}
+
+export type NestedEnumMaterialPreviewStatusWithAggregatesFilter<$PrismaModel = never> = {
+  equals?: $Enums.MaterialPreviewStatus | Prisma.EnumMaterialPreviewStatusFieldRefInput<$PrismaModel>
+  in?: $Enums.MaterialPreviewStatus[] | Prisma.ListEnumMaterialPreviewStatusFieldRefInput<$PrismaModel>
+  notIn?: $Enums.MaterialPreviewStatus[] | Prisma.ListEnumMaterialPreviewStatusFieldRefInput<$PrismaModel>
+  not?: Prisma.NestedEnumMaterialPreviewStatusWithAggregatesFilter<$PrismaModel> | $Enums.MaterialPreviewStatus
+  _count?: Prisma.NestedIntFilter<$PrismaModel>
+  _min?: Prisma.NestedEnumMaterialPreviewStatusFilter<$PrismaModel>
+  _max?: Prisma.NestedEnumMaterialPreviewStatusFilter<$PrismaModel>
 }
 
 export type NestedEnumQuestionTypeFilter<$PrismaModel = never> = {

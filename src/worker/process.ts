@@ -1,9 +1,11 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import {
+  chmod,
   mkdir,
   readdir,
   readFile,
+  rename,
   rm,
   stat,
   writeFile,
@@ -15,7 +17,12 @@ import { env } from "@/config/env";
 import { prisma } from "@/lib/database/client";
 
 type JsonObject = Record<string, unknown>;
-
+import { pathToFileURL } from "node:url";
+const OFFICE_PREVIEW_MIME_TYPES = new Set([
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+]);
 function payloadObject(payload: unknown): JsonObject {
   if (!payload || Array.isArray(payload) || typeof payload !== "object") {
     throw new Error("Payload của job không hợp lệ.");
@@ -85,7 +92,187 @@ type ProbeOutput = {
   }>;
   format?: { duration?: string };
 };
+async function generateDocumentPreview(materialId: string) {
+  const material = await prisma.material.findUnique({
+    where: {
+      id: materialId,
+    },
+    include: {
+      asset: true,
+    },
+  });
 
+  if (!material) {
+    throw new Error("Không tìm thấy tài liệu.");
+  }
+
+  if (material.asset.status !== "READY" || material.asset.deletedAt) {
+    throw new Error("File tài liệu nguồn không sẵn sàng.");
+  }
+
+  /*
+   * PDF / hình / text không cần LibreOffice.
+   * Dùng luôn file gốc làm bản xem.
+   */
+  if (!OFFICE_PREVIEW_MIME_TYPES.has(material.mimeType)) {
+    await prisma.material.update({
+      where: {
+        id: material.id,
+      },
+      data: {
+        previewStatus: "READY",
+        previewStorageKey: material.asset.storageKey,
+        previewError: null,
+      },
+    });
+
+    return {
+      materialId: material.id,
+      converted: false,
+      previewStorageKey: material.asset.storageKey,
+    };
+  }
+
+  await prisma.material.update({
+    where: {
+      id: material.id,
+    },
+    data: {
+      previewStatus: "PROCESSING",
+      previewError: null,
+    },
+  });
+
+  const sourcePath = safeStoragePath(material.asset.storageKey);
+
+  await stat(sourcePath);
+
+  /*
+   * LibreOffice chuyển file ở thư mục tạm trước.
+   */
+  const temporaryDirectory = safeStoragePath(
+    `temp/material-preview-${material.id}-${randomUUID()}`,
+  );
+
+  const libreOfficeProfileDirectory = path.join(
+    temporaryDirectory,
+    "libreoffice-profile",
+  );
+
+  /*
+   * PDF hoàn chỉnh được đưa vào đây.
+   */
+  const previewDirectory = safeStoragePath("documents/previews");
+
+  await mkdir(temporaryDirectory, {
+    recursive: true,
+    mode: 0o755,
+  });
+
+  await mkdir(libreOfficeProfileDirectory, {
+    recursive: true,
+    mode: 0o755,
+  });
+
+  await mkdir(previewDirectory, {
+    recursive: true,
+    mode: 0o755,
+  });
+
+  try {
+    await runProcess(
+      "libreoffice",
+      [
+        "--headless",
+        "--nologo",
+        "--nodefault",
+        "--nolockcheck",
+        "--nofirststartwizard",
+
+        `-env:UserInstallation=${
+          pathToFileURL(libreOfficeProfileDirectory).href
+        }`,
+
+        "--convert-to",
+        "pdf",
+
+        "--outdir",
+        temporaryDirectory,
+
+        sourcePath,
+      ],
+      true,
+    );
+
+    /*
+     * File nguồn được LMS lưu với UUID, ví dụ:
+     *
+     * documents/123.docx
+     *
+     * LibreOffice sinh:
+     *
+     * 123.pdf
+     */
+    const generatedPdfPath = path.join(
+      temporaryDirectory,
+      `${path.parse(sourcePath).name}.pdf`,
+    );
+
+    const generatedPdfStat = await stat(generatedPdfPath);
+
+    if (!generatedPdfStat.isFile() || generatedPdfStat.size <= 0) {
+      throw new Error("LibreOffice không tạo được file PDF hợp lệ.");
+    }
+
+    const previewStorageKey = `documents/previews/${randomUUID()}.pdf`;
+
+    const destination = safeStoragePath(previewStorageKey);
+
+    await rename(generatedPdfPath, destination);
+
+    /*
+     * Nginx cần đọc được PDF qua /protected/.
+     */
+    await chmod(destination, 0o644);
+
+    await prisma.material.update({
+      where: {
+        id: material.id,
+      },
+      data: {
+        previewStatus: "READY",
+        previewStorageKey,
+        previewError: null,
+      },
+    });
+
+    return {
+      materialId: material.id,
+      converted: true,
+      previewStorageKey,
+      sizeBytes: generatedPdfStat.size,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    await prisma.material.updateMany({
+      where: {
+        id: material.id,
+      },
+      data: {
+        previewStatus: "FAILED",
+        previewError: message.slice(0, 2000),
+      },
+    });
+
+    throw error;
+  } finally {
+    await rm(temporaryDirectory, {
+      recursive: true,
+      force: true,
+    });
+  }
+}
 async function processVideo(recordingId: string) {
   const recording = await prisma.recording.findUnique({
     where: { id: recordingId },
@@ -137,16 +324,23 @@ async function processVideo(recordingId: string) {
     "0:v:0",
     "-map",
     "0:a:0?",
+    "-vf",
+    "scale='min(1280,iw)':-2",
+
     "-c:v",
     "libx264",
+
     "-preset",
     "veryfast",
+
     "-crf",
-    "23",
+    "27",
+
     "-c:a",
     "aac",
+
     "-b:a",
-    "128k",
+    "96k",
     "-hls_time",
     "6",
     "-hls_playlist_type",
@@ -202,7 +396,19 @@ async function processVideo(recordingId: string) {
       },
     });
   });
+  await rm(sourcePath, {
+    force: true,
+  });
 
+  await prisma.asset.update({
+    where: {
+      id: recording.assetId,
+    },
+    data: {
+      status: "DELETED",
+      deletedAt: new Date(),
+    },
+  });
   return {
     recordingId,
     durationSeconds,
@@ -557,8 +763,7 @@ async function deleteProtectedFile(payload: JsonObject) {
       })
     : null;
 
-  const storageKey =
-    asset?.storageKey ?? requiredString(payload, "storageKey");
+  const storageKey = asset?.storageKey ?? requiredString(payload, "storageKey");
 
   const recursive = payload.recursive === true;
 
@@ -619,5 +824,7 @@ export async function processJob(type: JobType, rawPayload: unknown) {
       return deleteProtectedFile(payload);
     case "CLEAN_TEMP_FILES":
       return cleanTempFiles();
+    case "GENERATE_DOCUMENT_PREVIEW":
+      return generateDocumentPreview(requiredString(payload, "materialId"));
   }
 }

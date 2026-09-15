@@ -60,7 +60,29 @@ const contentRelations = {
     },
   },
 };
+const OFFICE_PREVIEW_MIME_TYPES = new Set([
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+]);
 
+function materialPreviewPlan(mimeType: string, storageKey: string) {
+  if (OFFICE_PREVIEW_MIME_TYPES.has(mimeType)) {
+    return {
+      previewStatus: "PENDING" as const,
+      previewStorageKey: null,
+      previewError: null,
+      needsConversion: true,
+    };
+  }
+
+  return {
+    previewStatus: "READY" as const,
+    previewStorageKey: storageKey,
+    previewError: null,
+    needsConversion: false,
+  };
+}
 function assertQuestionScore(
   questions: Array<{ score: number }>,
   maxScore: number,
@@ -155,6 +177,13 @@ export async function purgeContent(
             select: {
               id: true,
               assetId: true,
+              previewStorageKey: true,
+
+              asset: {
+                select: {
+                  storageKey: true,
+                },
+              },
             },
           },
           recording: {
@@ -259,13 +288,11 @@ export async function purgeContent(
           });
 
           if (remaining === 0) {
-            const slashIndex =
-              recording.hlsManifestKey.lastIndexOf("/");
+            const slashIndex = recording.hlsManifestKey.lastIndexOf("/");
 
             if (slashIndex > 0) {
               cleanupTargets.push({
-                storageKey:
-                  recording.hlsManifestKey.slice(0, slashIndex),
+                storageKey: recording.hlsManifestKey.slice(0, slashIndex),
                 recursive: true,
               });
             }
@@ -281,7 +308,36 @@ export async function purgeContent(
 
       if (content.material) {
         candidateAssetIds.add(content.material.assetId);
+        await tx.$executeRaw`
+  DELETE FROM "jobs"
+  WHERE "payload"->>'materialId' =
+        ${content.material.id}
+    AND "type"::text =
+        'GENERATE_DOCUMENT_PREVIEW'
+`;
 
+        if (
+          content.material.previewStorageKey &&
+          content.material.previewStorageKey !==
+            content.material.asset.storageKey
+        ) {
+          const remainingPreviewReferences = await tx.material.count({
+            where: {
+              id: {
+                not: content.material.id,
+              },
+
+              previewStorageKey: content.material.previewStorageKey,
+            },
+          });
+
+          if (remainingPreviewReferences === 0) {
+            cleanupTargets.push({
+              storageKey: content.material.previewStorageKey,
+            });
+          }
+        }
+        candidateAssetIds.add(content.material.assetId);
         await tx.material.delete({
           where: {
             id: content.material.id,
@@ -459,11 +515,7 @@ export async function purgeContent(
        */
 
       for (const assetId of candidateAssetIds) {
-        await purgeUnusedAsset(
-          tx,
-          assetId,
-          cleanupTargets,
-        );
+        await purgeUnusedAsset(tx, assetId, cleanupTargets);
       }
 
       /*
@@ -567,7 +619,9 @@ export async function createContent(
             "Tài liệu đã tải lên không hợp lệ.",
           );
         }
-        await tx.material.create({
+        const preview = materialPreviewPlan(asset.mimeType, asset.storageKey);
+
+        const material = await tx.material.create({
           data: {
             contentId: content.id,
             assetId: asset.id,
@@ -575,8 +629,25 @@ export async function createContent(
             description: input.payload.description,
             mimeType: asset.mimeType,
             sizeBytes: asset.sizeBytes,
+
+            previewStatus: preview.previewStatus,
+
+            previewStorageKey: preview.previewStorageKey,
+
+            previewError: preview.previewError,
           },
         });
+
+        if (preview.needsConversion) {
+          await tx.job.create({
+            data: {
+              type: "GENERATE_DOCUMENT_PREVIEW",
+              payload: {
+                materialId: material.id,
+              },
+            },
+          });
+        }
         break;
       }
       case "VIDEO": {
@@ -752,12 +823,35 @@ export async function getContentDetail(actor: Actor, contentId: string) {
           }
         : content.type === "MATERIAL" && content.material
           ? {
+              materialId: content.material.id,
+
               assetId: content.material.assetId,
+
               title: content.material.title,
+
               description: content.material.description,
+
               mimeType: content.material.mimeType,
+
               sizeBytes: content.material.sizeBytes.toString(),
-              downloadUrl: `/api/v1/assets/${content.material.assetId}/download`,
+
+              previewStatus: content.material.previewStatus,
+
+              previewError: isLearner
+                ? undefined
+                : content.material.previewError,
+
+              viewUrl:
+                content.material.previewStatus === "READY" &&
+                content.material.previewStorageKey
+                  ? `/api/v1/materials/${content.material.id}/preview`
+                  : null,
+
+              ...(!isLearner
+                ? {
+                    downloadUrl: `/api/v1/assets/${content.material.assetId}/download`,
+                  }
+                : {}),
             }
           : content.type === "VIDEO" && content.recording
             ? {
@@ -855,16 +949,43 @@ export async function updateContent(
         if (!asset) {
           throw new AppError("VALIDATION_ERROR", "Tài liệu không hợp lệ.");
         }
-        await tx.material.update({
-          where: { contentId },
+        const assetChanged = current.material?.assetId !== asset.id;
+
+        const preview = materialPreviewPlan(asset.mimeType, asset.storageKey);
+
+        const material = await tx.material.update({
+          where: {
+            contentId,
+          },
           data: {
             assetId: asset.id,
             title: input.payload.title,
             description: input.payload.description,
             mimeType: asset.mimeType,
             sizeBytes: asset.sizeBytes,
+
+            ...(assetChanged
+              ? {
+                  previewStatus: preview.previewStatus,
+
+                  previewStorageKey: preview.previewStorageKey,
+
+                  previewError: null,
+                }
+              : {}),
           },
         });
+
+        if (assetChanged && preview.needsConversion) {
+          await tx.job.create({
+            data: {
+              type: "GENERATE_DOCUMENT_PREVIEW",
+              payload: {
+                materialId: material.id,
+              },
+            },
+          });
+        }
       } else if (input.type === "VIDEO") {
         const asset = await tx.asset.findFirst({
           where: {
@@ -1031,7 +1152,9 @@ function assertContentReady(
   const ready =
     (content.type === "LESSON" &&
       Boolean(content.lesson?.markdownContent.trim())) ||
-    (content.type === "MATERIAL" && Boolean(content.material)) ||
+    (content.type === "MATERIAL" &&
+      content.material?.previewStatus === "READY" &&
+      Boolean(content.material.previewStorageKey)) ||
     (content.type === "VIDEO" &&
       content.recording?.processingStatus === "READY") ||
     (content.type === "ASSIGNMENT" &&
@@ -1087,6 +1210,12 @@ async function cloneContentVersion(
         description: source.material.description,
         mimeType: source.material.mimeType,
         sizeBytes: source.material.sizeBytes,
+
+        previewStatus: source.material.previewStatus,
+
+        previewStorageKey: source.material.previewStorageKey,
+
+        previewError: source.material.previewError,
       },
     });
   }
@@ -1174,7 +1303,6 @@ async function cloneContentVersion(
 
   return next;
 }
-
 
 export async function executeContentWorkflow(
   actor: Actor,

@@ -44,6 +44,9 @@ export type MaterialMinAggregateOutputType = {
   sizeBytes: bigint | null
   createdAt: Date | null
   updatedAt: Date | null
+  previewStatus: $Enums.MaterialPreviewStatus | null
+  previewStorageKey: string | null
+  previewError: string | null
 }
 
 export type MaterialMaxAggregateOutputType = {
@@ -56,6 +59,9 @@ export type MaterialMaxAggregateOutputType = {
   sizeBytes: bigint | null
   createdAt: Date | null
   updatedAt: Date | null
+  previewStatus: $Enums.MaterialPreviewStatus | null
+  previewStorageKey: string | null
+  previewError: string | null
 }
 
 export type MaterialCountAggregateOutputType = {
@@ -68,6 +74,9 @@ export type MaterialCountAggregateOutputType = {
   sizeBytes: number
   createdAt: number
   updatedAt: number
+  previewStatus: number
+  previewStorageKey: number
+  previewError: number
   _all: number
 }
 
@@ -90,6 +99,9 @@ export type MaterialMinAggregateInputType = {
   sizeBytes?: true
   createdAt?: true
   updatedAt?: true
+  previewStatus?: true
+  previewStorageKey?: true
+  previewError?: true
 }
 
 export type MaterialMaxAggregateInputType = {
@@ -102,6 +114,9 @@ export type MaterialMaxAggregateInputType = {
   sizeBytes?: true
   createdAt?: true
   updatedAt?: true
+  previewStatus?: true
+  previewStorageKey?: true
+  previewError?: true
 }
 
 export type MaterialCountAggregateInputType = {
@@ -114,6 +129,9 @@ export type MaterialCountAggregateInputType = {
   sizeBytes?: true
   createdAt?: true
   updatedAt?: true
+  previewStatus?: true
+  previewStorageKey?: true
+  previewError?: true
   _all?: true
 }
 
@@ -213,6 +231,9 @@ export type MaterialGroupByOutputType = {
   sizeBytes: bigint
   createdAt: Date
   updatedAt: Date
+  previewStatus: $Enums.MaterialPreviewStatus
+  previewStorageKey: string | null
+  previewError: string | null
   _count: MaterialCountAggregateOutputType | null
   _avg: MaterialAvgAggregateOutputType | null
   _sum: MaterialSumAggregateOutputType | null
@@ -248,6 +269,9 @@ export type MaterialWhereInput = {
   sizeBytes?: Prisma.BigIntFilter<"Material"> | bigint | number
   createdAt?: Prisma.DateTimeFilter<"Material"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Material"> | Date | string
+  previewStatus?: Prisma.EnumMaterialPreviewStatusFilter<"Material"> | $Enums.MaterialPreviewStatus
+  previewStorageKey?: Prisma.StringNullableFilter<"Material"> | string | null
+  previewError?: Prisma.StringNullableFilter<"Material"> | string | null
   content?: Prisma.XOR<Prisma.ContentScalarRelationFilter, Prisma.ContentWhereInput>
   asset?: Prisma.XOR<Prisma.AssetScalarRelationFilter, Prisma.AssetWhereInput>
 }
@@ -262,6 +286,9 @@ export type MaterialOrderByWithRelationInput = {
   sizeBytes?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  previewStatus?: Prisma.SortOrder
+  previewStorageKey?: Prisma.SortOrderInput | Prisma.SortOrder
+  previewError?: Prisma.SortOrderInput | Prisma.SortOrder
   content?: Prisma.ContentOrderByWithRelationInput
   asset?: Prisma.AssetOrderByWithRelationInput
 }
@@ -279,6 +306,9 @@ export type MaterialWhereUniqueInput = Prisma.AtLeast<{
   sizeBytes?: Prisma.BigIntFilter<"Material"> | bigint | number
   createdAt?: Prisma.DateTimeFilter<"Material"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Material"> | Date | string
+  previewStatus?: Prisma.EnumMaterialPreviewStatusFilter<"Material"> | $Enums.MaterialPreviewStatus
+  previewStorageKey?: Prisma.StringNullableFilter<"Material"> | string | null
+  previewError?: Prisma.StringNullableFilter<"Material"> | string | null
   content?: Prisma.XOR<Prisma.ContentScalarRelationFilter, Prisma.ContentWhereInput>
   asset?: Prisma.XOR<Prisma.AssetScalarRelationFilter, Prisma.AssetWhereInput>
 }, "id" | "contentId">
@@ -293,6 +323,9 @@ export type MaterialOrderByWithAggregationInput = {
   sizeBytes?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  previewStatus?: Prisma.SortOrder
+  previewStorageKey?: Prisma.SortOrderInput | Prisma.SortOrder
+  previewError?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.MaterialCountOrderByAggregateInput
   _avg?: Prisma.MaterialAvgOrderByAggregateInput
   _max?: Prisma.MaterialMaxOrderByAggregateInput
@@ -313,6 +346,9 @@ export type MaterialScalarWhereWithAggregatesInput = {
   sizeBytes?: Prisma.BigIntWithAggregatesFilter<"Material"> | bigint | number
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Material"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Material"> | Date | string
+  previewStatus?: Prisma.EnumMaterialPreviewStatusWithAggregatesFilter<"Material"> | $Enums.MaterialPreviewStatus
+  previewStorageKey?: Prisma.StringNullableWithAggregatesFilter<"Material"> | string | null
+  previewError?: Prisma.StringNullableWithAggregatesFilter<"Material"> | string | null
 }
 
 export type MaterialCreateInput = {
@@ -323,6 +359,9 @@ export type MaterialCreateInput = {
   sizeBytes: bigint | number
   createdAt?: Date | string
   updatedAt?: Date | string
+  previewStatus?: $Enums.MaterialPreviewStatus
+  previewStorageKey?: string | null
+  previewError?: string | null
   content: Prisma.ContentCreateNestedOneWithoutMaterialInput
   asset: Prisma.AssetCreateNestedOneWithoutMaterialsInput
 }
@@ -337,6 +376,9 @@ export type MaterialUncheckedCreateInput = {
   sizeBytes: bigint | number
   createdAt?: Date | string
   updatedAt?: Date | string
+  previewStatus?: $Enums.MaterialPreviewStatus
+  previewStorageKey?: string | null
+  previewError?: string | null
 }
 
 export type MaterialUpdateInput = {
@@ -347,6 +389,9 @@ export type MaterialUpdateInput = {
   sizeBytes?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  previewStatus?: Prisma.EnumMaterialPreviewStatusFieldUpdateOperationsInput | $Enums.MaterialPreviewStatus
+  previewStorageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  previewError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   content?: Prisma.ContentUpdateOneRequiredWithoutMaterialNestedInput
   asset?: Prisma.AssetUpdateOneRequiredWithoutMaterialsNestedInput
 }
@@ -361,6 +406,9 @@ export type MaterialUncheckedUpdateInput = {
   sizeBytes?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  previewStatus?: Prisma.EnumMaterialPreviewStatusFieldUpdateOperationsInput | $Enums.MaterialPreviewStatus
+  previewStorageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  previewError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type MaterialCreateManyInput = {
@@ -373,6 +421,9 @@ export type MaterialCreateManyInput = {
   sizeBytes: bigint | number
   createdAt?: Date | string
   updatedAt?: Date | string
+  previewStatus?: $Enums.MaterialPreviewStatus
+  previewStorageKey?: string | null
+  previewError?: string | null
 }
 
 export type MaterialUpdateManyMutationInput = {
@@ -383,6 +434,9 @@ export type MaterialUpdateManyMutationInput = {
   sizeBytes?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  previewStatus?: Prisma.EnumMaterialPreviewStatusFieldUpdateOperationsInput | $Enums.MaterialPreviewStatus
+  previewStorageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  previewError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type MaterialUncheckedUpdateManyInput = {
@@ -395,6 +449,9 @@ export type MaterialUncheckedUpdateManyInput = {
   sizeBytes?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  previewStatus?: Prisma.EnumMaterialPreviewStatusFieldUpdateOperationsInput | $Enums.MaterialPreviewStatus
+  previewStorageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  previewError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type MaterialNullableScalarRelationFilter = {
@@ -422,6 +479,9 @@ export type MaterialCountOrderByAggregateInput = {
   sizeBytes?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  previewStatus?: Prisma.SortOrder
+  previewStorageKey?: Prisma.SortOrder
+  previewError?: Prisma.SortOrder
 }
 
 export type MaterialAvgOrderByAggregateInput = {
@@ -438,6 +498,9 @@ export type MaterialMaxOrderByAggregateInput = {
   sizeBytes?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  previewStatus?: Prisma.SortOrder
+  previewStorageKey?: Prisma.SortOrder
+  previewError?: Prisma.SortOrder
 }
 
 export type MaterialMinOrderByAggregateInput = {
@@ -450,6 +513,9 @@ export type MaterialMinOrderByAggregateInput = {
   sizeBytes?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
+  previewStatus?: Prisma.SortOrder
+  previewStorageKey?: Prisma.SortOrder
+  previewError?: Prisma.SortOrder
 }
 
 export type MaterialSumOrderByAggregateInput = {
@@ -530,6 +596,10 @@ export type MaterialUncheckedUpdateManyWithoutAssetNestedInput = {
   deleteMany?: Prisma.MaterialScalarWhereInput | Prisma.MaterialScalarWhereInput[]
 }
 
+export type EnumMaterialPreviewStatusFieldUpdateOperationsInput = {
+  set?: $Enums.MaterialPreviewStatus
+}
+
 export type MaterialCreateWithoutContentInput = {
   id?: string
   title: string
@@ -538,6 +608,9 @@ export type MaterialCreateWithoutContentInput = {
   sizeBytes: bigint | number
   createdAt?: Date | string
   updatedAt?: Date | string
+  previewStatus?: $Enums.MaterialPreviewStatus
+  previewStorageKey?: string | null
+  previewError?: string | null
   asset: Prisma.AssetCreateNestedOneWithoutMaterialsInput
 }
 
@@ -550,6 +623,9 @@ export type MaterialUncheckedCreateWithoutContentInput = {
   sizeBytes: bigint | number
   createdAt?: Date | string
   updatedAt?: Date | string
+  previewStatus?: $Enums.MaterialPreviewStatus
+  previewStorageKey?: string | null
+  previewError?: string | null
 }
 
 export type MaterialCreateOrConnectWithoutContentInput = {
@@ -576,6 +652,9 @@ export type MaterialUpdateWithoutContentInput = {
   sizeBytes?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  previewStatus?: Prisma.EnumMaterialPreviewStatusFieldUpdateOperationsInput | $Enums.MaterialPreviewStatus
+  previewStorageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  previewError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   asset?: Prisma.AssetUpdateOneRequiredWithoutMaterialsNestedInput
 }
 
@@ -588,6 +667,9 @@ export type MaterialUncheckedUpdateWithoutContentInput = {
   sizeBytes?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  previewStatus?: Prisma.EnumMaterialPreviewStatusFieldUpdateOperationsInput | $Enums.MaterialPreviewStatus
+  previewStorageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  previewError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type MaterialCreateWithoutAssetInput = {
@@ -598,6 +680,9 @@ export type MaterialCreateWithoutAssetInput = {
   sizeBytes: bigint | number
   createdAt?: Date | string
   updatedAt?: Date | string
+  previewStatus?: $Enums.MaterialPreviewStatus
+  previewStorageKey?: string | null
+  previewError?: string | null
   content: Prisma.ContentCreateNestedOneWithoutMaterialInput
 }
 
@@ -610,6 +695,9 @@ export type MaterialUncheckedCreateWithoutAssetInput = {
   sizeBytes: bigint | number
   createdAt?: Date | string
   updatedAt?: Date | string
+  previewStatus?: $Enums.MaterialPreviewStatus
+  previewStorageKey?: string | null
+  previewError?: string | null
 }
 
 export type MaterialCreateOrConnectWithoutAssetInput = {
@@ -651,6 +739,9 @@ export type MaterialScalarWhereInput = {
   sizeBytes?: Prisma.BigIntFilter<"Material"> | bigint | number
   createdAt?: Prisma.DateTimeFilter<"Material"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Material"> | Date | string
+  previewStatus?: Prisma.EnumMaterialPreviewStatusFilter<"Material"> | $Enums.MaterialPreviewStatus
+  previewStorageKey?: Prisma.StringNullableFilter<"Material"> | string | null
+  previewError?: Prisma.StringNullableFilter<"Material"> | string | null
 }
 
 export type MaterialCreateManyAssetInput = {
@@ -662,6 +753,9 @@ export type MaterialCreateManyAssetInput = {
   sizeBytes: bigint | number
   createdAt?: Date | string
   updatedAt?: Date | string
+  previewStatus?: $Enums.MaterialPreviewStatus
+  previewStorageKey?: string | null
+  previewError?: string | null
 }
 
 export type MaterialUpdateWithoutAssetInput = {
@@ -672,6 +766,9 @@ export type MaterialUpdateWithoutAssetInput = {
   sizeBytes?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  previewStatus?: Prisma.EnumMaterialPreviewStatusFieldUpdateOperationsInput | $Enums.MaterialPreviewStatus
+  previewStorageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  previewError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   content?: Prisma.ContentUpdateOneRequiredWithoutMaterialNestedInput
 }
 
@@ -684,6 +781,9 @@ export type MaterialUncheckedUpdateWithoutAssetInput = {
   sizeBytes?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  previewStatus?: Prisma.EnumMaterialPreviewStatusFieldUpdateOperationsInput | $Enums.MaterialPreviewStatus
+  previewStorageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  previewError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 export type MaterialUncheckedUpdateManyWithoutAssetInput = {
@@ -695,6 +795,9 @@ export type MaterialUncheckedUpdateManyWithoutAssetInput = {
   sizeBytes?: Prisma.BigIntFieldUpdateOperationsInput | bigint | number
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  previewStatus?: Prisma.EnumMaterialPreviewStatusFieldUpdateOperationsInput | $Enums.MaterialPreviewStatus
+  previewStorageKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  previewError?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
 }
 
 
@@ -709,6 +812,9 @@ export type MaterialSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs
   sizeBytes?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  previewStatus?: boolean
+  previewStorageKey?: boolean
+  previewError?: boolean
   content?: boolean | Prisma.ContentDefaultArgs<ExtArgs>
   asset?: boolean | Prisma.AssetDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["material"]>
@@ -723,6 +829,9 @@ export type MaterialSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exte
   sizeBytes?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  previewStatus?: boolean
+  previewStorageKey?: boolean
+  previewError?: boolean
   content?: boolean | Prisma.ContentDefaultArgs<ExtArgs>
   asset?: boolean | Prisma.AssetDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["material"]>
@@ -737,6 +846,9 @@ export type MaterialSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exte
   sizeBytes?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  previewStatus?: boolean
+  previewStorageKey?: boolean
+  previewError?: boolean
   content?: boolean | Prisma.ContentDefaultArgs<ExtArgs>
   asset?: boolean | Prisma.AssetDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["material"]>
@@ -751,9 +863,12 @@ export type MaterialSelectScalar = {
   sizeBytes?: boolean
   createdAt?: boolean
   updatedAt?: boolean
+  previewStatus?: boolean
+  previewStorageKey?: boolean
+  previewError?: boolean
 }
 
-export type MaterialOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "contentId" | "assetId" | "title" | "description" | "mimeType" | "sizeBytes" | "createdAt" | "updatedAt", ExtArgs["result"]["material"]>
+export type MaterialOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "contentId" | "assetId" | "title" | "description" | "mimeType" | "sizeBytes" | "createdAt" | "updatedAt" | "previewStatus" | "previewStorageKey" | "previewError", ExtArgs["result"]["material"]>
 export type MaterialInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   content?: boolean | Prisma.ContentDefaultArgs<ExtArgs>
   asset?: boolean | Prisma.AssetDefaultArgs<ExtArgs>
@@ -783,6 +898,9 @@ export type $MaterialPayload<ExtArgs extends runtime.Types.Extensions.InternalAr
     sizeBytes: bigint
     createdAt: Date
     updatedAt: Date
+    previewStatus: $Enums.MaterialPreviewStatus
+    previewStorageKey: string | null
+    previewError: string | null
   }, ExtArgs["result"]["material"]>
   composites: {}
 }
@@ -1217,6 +1335,9 @@ export interface MaterialFieldRefs {
   readonly sizeBytes: Prisma.FieldRef<"Material", 'BigInt'>
   readonly createdAt: Prisma.FieldRef<"Material", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"Material", 'DateTime'>
+  readonly previewStatus: Prisma.FieldRef<"Material", 'MaterialPreviewStatus'>
+  readonly previewStorageKey: Prisma.FieldRef<"Material", 'String'>
+  readonly previewError: Prisma.FieldRef<"Material", 'String'>
 }
     
 

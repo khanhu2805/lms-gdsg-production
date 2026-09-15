@@ -460,7 +460,10 @@ export const MaterialScalarFieldEnum = {
   mimeType: 'mimeType',
   sizeBytes: 'sizeBytes',
   createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
+  updatedAt: 'updatedAt',
+  previewStatus: 'previewStatus',
+  previewStorageKey: 'previewStorageKey',
+  previewError: 'previewError'
 } as const
 
 export type MaterialScalarFieldEnum = (typeof MaterialScalarFieldEnum)[keyof typeof MaterialScalarFieldEnum]

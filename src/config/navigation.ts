@@ -103,6 +103,7 @@ export const NAVIGATION_BY_ROLE: Record<UserRole, NavigationItem[]> = {
     { label: "Lớp học", href: "/dashboard/classes", icon: GraduationCap },
     { label: "Lịch học", href: "/dashboard/sessions", icon: CalendarDays },
     { label: "Bài học", href: "/dashboard/lessons", icon: BookOpen },
+    { label: "Tài liệu", href: "/dashboard/materials", icon: FileText },
     { label: "Video", href: "/dashboard/videos", icon: Video },
     { label: "Bài tập", href: "/dashboard/assignments", icon: NotebookTabs },
     { label: "Bài kiểm tra", href: "/dashboard/quizzes", icon: ListChecks },

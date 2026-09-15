@@ -16,6 +16,7 @@ type ClaimedJob = {
 
 let stopping = false;
 let lastScheduleAt = 0;
+let lastMaterialPreviewScheduleAt = 0;
 
 function sleep(milliseconds: number) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -82,6 +83,59 @@ async function scheduleAttendanceJobs() {
     },
     data: { status: "ENDED", endedAt: new Date() },
   });
+}
+
+async function scheduleMaterialPreviewJobs() {
+  if (Date.now() - lastMaterialPreviewScheduleAt < 60_000) {
+    return;
+  }
+
+  lastMaterialPreviewScheduleAt = Date.now();
+
+  const materials = await prisma.material.findMany({
+    where: {
+      previewStatus: "PENDING",
+    },
+    select: {
+      id: true,
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+    take: 50,
+  });
+
+  for (const material of materials) {
+    const existing = await prisma.job.findFirst({
+      where: {
+        type: "GENERATE_DOCUMENT_PREVIEW",
+
+        payload: {
+          path: ["materialId"],
+          equals: material.id,
+        },
+
+        status: {
+          in: ["PENDING", "PROCESSING"],
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!existing) {
+      await prisma.job.create({
+        data: {
+          type: "GENERATE_DOCUMENT_PREVIEW",
+
+          payload: {
+            materialId: material.id,
+          },
+        },
+      });
+    }
+  }
 }
 
 async function finalizeExpiredQuizAttempts() {
@@ -261,6 +315,8 @@ async function run() {
   while (!stopping) {
     try {
       await scheduleAttendanceJobs();
+      await scheduleMaterialPreviewJobs();
+
       const job = await claimJob();
       if (!job) {
         await sleep(env.WORKER_POLL_INTERVAL_MS);

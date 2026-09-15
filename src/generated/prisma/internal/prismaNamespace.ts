@@ -3806,7 +3806,10 @@ export const MaterialScalarFieldEnum = {
   mimeType: 'mimeType',
   sizeBytes: 'sizeBytes',
   createdAt: 'createdAt',
-  updatedAt: 'updatedAt'
+  updatedAt: 'updatedAt',
+  previewStatus: 'previewStatus',
+  previewStorageKey: 'previewStorageKey',
+  previewError: 'previewError'
 } as const
 
 export type MaterialScalarFieldEnum = (typeof MaterialScalarFieldEnum)[keyof typeof MaterialScalarFieldEnum]
@@ -4450,6 +4453,20 @@ export type EnumVideoViewSessionStatusFieldRefInput<$PrismaModel> = FieldRefInpu
  * Reference to a field of type 'VideoViewSessionStatus[]'
  */
 export type ListEnumVideoViewSessionStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'VideoViewSessionStatus[]'>
+    
+
+
+/**
+ * Reference to a field of type 'MaterialPreviewStatus'
+ */
+export type EnumMaterialPreviewStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'MaterialPreviewStatus'>
+    
+
+
+/**
+ * Reference to a field of type 'MaterialPreviewStatus[]'
+ */
+export type ListEnumMaterialPreviewStatusFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'MaterialPreviewStatus[]'>
     
 
 

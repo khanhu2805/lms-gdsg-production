@@ -43,7 +43,7 @@ export async function authorizeRecordingPlayback(
   }
   if (
     recording.processingStatus !== "READY" ||
-    recording.asset.status !== "READY"
+    (!recording.hlsManifestKey && recording.asset.status !== "READY")
   ) {
     throw new AppError("CONFLICT", "Video chưa sẵn sàng để phát.");
   }

@@ -62,6 +62,13 @@ enum ContentType {
   LESSON
 }
 
+enum MaterialPreviewStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
 enum ContentPublicationStatus {
   DRAFT
   PENDING_TEACHER_REVIEW
@@ -190,6 +197,7 @@ enum JobType {
   GENERATE_REPORT
   FINALIZE_ATTENDANCE
   CLEAN_TEMP_FILES
+  GENERATE_DOCUMENT_PREVIEW
 }
 
 enum JobStatus {
@@ -687,6 +695,10 @@ model Material {
   sizeBytes   BigInt
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  previewStatus     MaterialPreviewStatus @default(PENDING)
+  previewStorageKey String?
+  previewError      String?
 
   content Content @relation(fields: [contentId], references: [id], onDelete: Restrict)
   asset   Asset   @relation(fields: [assetId], references: [id], onDelete: Restrict)

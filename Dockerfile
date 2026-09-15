@@ -38,7 +38,13 @@ CMD ["node", "server.js"]
 
 FROM deps AS worker
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
+    && apt-get install -y --no-install-recommends \ 
+    ffmpeg \
+    ca-certificates \
+    libreoffice-core \
+    libreoffice-writer \
+    libreoffice-calc \
+    libreoffice-impress \
     && rm -rf /var/lib/apt/lists/*
 COPY . .
 RUN DATABASE_URL=postgresql://lms:build-only@localhost:5432/lms_gdsg?schema=public \
