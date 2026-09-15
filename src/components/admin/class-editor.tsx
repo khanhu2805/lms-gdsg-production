@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionDialogs } from "@/components/ui/action-dialogs";
-import { Archive, ArrowRightLeft, UserMinus, UserPlus } from "lucide-react";
+import { Archive, ArrowRightLeft, UserMinus, UserPlus, Trash2, } from "lucide-react";
 
 import type { ResourceOption } from "@/modules/dashboard/resource-data";
 
@@ -74,6 +74,7 @@ export function ClassEditor({
   subjects,
   classes,
   users,
+  actorRole,
 }: {
   mode: "create" | "detail";
   canEdit: boolean;
@@ -81,9 +82,13 @@ export function ClassEditor({
   subjects: ResourceOption[];
   classes: ResourceOption[];
   users: ResourceOption[];
+  actorRole: string;
 }) {
+  const {
+    requestReason,
+    confirmAction,
+  } = useActionDialogs();
   const router = useRouter();
-  const { requestReason } = useActionDialogs();
   const courseClass = entity as CourseClassDetail | null;
   const [busy, setBusy] = useState(false);
   const [staffRole, setStaffRole] = useState<"TEACHER" | "TEACHING_ASSISTANT">(
@@ -109,6 +114,51 @@ export function ClassEditor({
     });
   }
 
+  async function permanentlyDeleteClass() {
+    if (!entity || actorRole !== "ADMIN") {
+      return;
+    }
+
+    const confirmed =
+      await confirmAction({
+        title: "Xóa vĩnh viễn?",
+        description:
+          "Dữ liệu liên quan sẽ bị xóa và không thể khôi phục.",
+        confirmLabel: "Tiếp tục",
+        danger: true,
+      });
+
+    if (!confirmed) return;
+
+    const reason =
+      await requestReason({
+        title: "Xác nhận xóa vĩnh viễn",
+        description:
+          "Nhập lý do để lưu vào nhật ký kiểm toán.",
+        confirmLabel: "Xóa vĩnh viễn",
+        danger: true,
+      });
+
+    if (!reason) return;
+
+    setBusy(true);
+
+    try {
+      await apiRequest(
+        `/api/v1/classes/${courseClass?.id}/purge`,
+        {
+          method: "DELETE",
+          ...jsonRequest({ reason }),
+        },
+      );
+
+      router.push("/dashboard/classes");
+      router.refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submitClass(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
@@ -117,10 +167,10 @@ export function ClassEditor({
       const payload = {
         ...(courseClass
           ? {
-              expectedVersion: courseClass.version,
-              reason: String(formData.get("reason") ?? ""),
-              confirmOverCapacity: formData.get("confirmOverCapacity") === "on",
-            }
+            expectedVersion: courseClass.version,
+            reason: String(formData.get("reason") ?? ""),
+            confirmOverCapacity: formData.get("confirmOverCapacity") === "on",
+          }
           : { code: String(formData.get("code") ?? "") }),
         name: String(formData.get("name") ?? ""),
         subjectId: String(formData.get("subjectId") ?? ""),
@@ -174,8 +224,8 @@ export function ClassEditor({
           userId: String(formData.get("userId") ?? ""),
           ...(role === "TEACHER"
             ? {
-                teacherType: String(formData.get("teacherType") ?? "SECONDARY"),
-              }
+              teacherType: String(formData.get("teacherType") ?? "SECONDARY"),
+            }
             : {}),
           reason: String(formData.get("reason") ?? ""),
         }),
@@ -456,6 +506,17 @@ export function ClassEditor({
           >
             <Archive className="mr-2 size-4" />
             Lưu trữ lớp
+          </button>
+        ) : null}
+        {courseClass && actorRole === "ADMIN" ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={permanentlyDeleteClass}
+            className={DANGER_BUTTON}
+          >
+            <Trash2 className="mr-2 size-4" />
+            Xóa vĩnh viễn
           </button>
         ) : null}
         <button disabled={busy} className={PRIMARY_BUTTON}>

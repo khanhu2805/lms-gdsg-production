@@ -7,6 +7,7 @@ import { prisma } from "@/lib/database/client";
 import { AppError } from "@/lib/errors/app-error";
 import type { RequestContext } from "@/lib/security/request-context";
 import { writeAuditLog } from "@/modules/audit/audit.service";
+import { purgeClassSession } from "@/modules/sessions/session.service";
 
 import { calculateCapacity, canAddStudent } from "./capacity";
 import type {
@@ -611,5 +612,147 @@ export async function removeStudentFromClass(
       return updated;
     },
     { isolationLevel: "Serializable" },
+  );
+}
+
+export async function purgeCourseClass(
+  actor: Actor,
+  classId: string,
+  reason: string,
+  context?: RequestContext,
+) {
+  if (actor.role !== "ADMIN") {
+    throw new AppError(
+      "FORBIDDEN",
+      "Chỉ quản trị viên được phép xóa vĩnh viễn lớp học.",
+    );
+  }
+
+  const courseClass = await prisma.courseClass.findUnique({
+    where: {
+      id: classId,
+    },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      subjectId: true,
+      academicYear: true,
+      status: true,
+      createdAt: true,
+    },
+  });
+
+  if (!courseClass) {
+    throw new AppError("NOT_FOUND");
+  }
+
+  /*
+   * Khóa lớp khỏi việc tạo buổi mới trong lúc purge.
+   */
+  await prisma.courseClass.update({
+    where: {
+      id: classId,
+    },
+    data: {
+      status: "ARCHIVED",
+    },
+  });
+
+  const sessions = await prisma.classSession.findMany({
+    where: {
+      classId,
+    },
+    select: {
+      id: true,
+    },
+    orderBy: {
+      sessionNumber: "desc",
+    },
+  });
+
+  for (const session of sessions) {
+    await purgeClassSession(
+      actor,
+      session.id,
+      `Xóa cùng lớp ${courseClass.code}: ${reason}`,
+      context,
+    );
+  }
+
+  /*
+   * Safety check:
+   * mọi Content bắt buộc phải thuộc ClassSession.
+   */
+  const remainingContents = await prisma.content.count({
+    where: {
+      classId,
+    },
+  });
+
+  if (remainingContents > 0) {
+    throw new AppError(
+      "CONFLICT",
+      `Vẫn còn ${remainingContents} nội dung trong lớp. Không thể xóa lớp.`,
+    );
+  }
+
+  return prisma.$transaction(
+    async (tx) => {
+      /*
+       * PermissionGrant đang Restrict với CourseClass.
+       */
+      await tx.permissionGrant.deleteMany({
+        where: {
+          scopeClassId: classId,
+        },
+      });
+
+      /*
+       * Xóa membership, KHÔNG xóa User.
+       */
+      await tx.classTeacher.deleteMany({
+        where: {
+          classId,
+        },
+      });
+
+      await tx.classAssistant.deleteMany({
+        where: {
+          classId,
+        },
+      });
+
+      await tx.classStudent.deleteMany({
+        where: {
+          classId,
+        },
+      });
+
+      await writeAuditLog(tx, {
+        actorId: actor.id,
+        actorRole: actor.role,
+        action: "CLASS_PERMANENTLY_DELETED",
+        entityType: "CourseClass",
+        entityId: courseClass.id,
+        oldValue: courseClass,
+        reason,
+        context,
+      });
+
+      await tx.courseClass.delete({
+        where: {
+          id: classId,
+        },
+      });
+
+      return {
+        id: classId,
+        deleted: true,
+      };
+    },
+    {
+      isolationLevel: "Serializable",
+    },
   );
 }

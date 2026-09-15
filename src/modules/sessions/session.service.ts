@@ -11,6 +11,7 @@ import { prisma } from "@/lib/database/client";
 import { AppError } from "@/lib/errors/app-error";
 import type { RequestContext } from "@/lib/security/request-context";
 import { writeAuditLog } from "@/modules/audit/audit.service";
+import { purgeContent } from "@/modules/contents/content.service";
 
 import type {
   createClassSessionSchema,
@@ -313,4 +314,107 @@ export async function getStaffSession(actor: Actor, sessionId: string) {
   if (!session) throw new AppError("NOT_FOUND");
   await assertStaffClassAccess(actor, session.classId);
   return session;
+}
+
+export async function purgeClassSession(
+  actor: Actor,
+  sessionId: string,
+  reason: string,
+  context?: RequestContext,
+) {
+  if (actor.role !== "ADMIN") {
+    throw new AppError(
+      "FORBIDDEN",
+      "Chỉ quản trị viên được phép xóa vĩnh viễn buổi học.",
+    );
+  }
+
+  const session = await prisma.classSession.findUnique({
+    where: { id: sessionId },
+    select: {
+      id: true,
+      classId: true,
+      sessionNumber: true,
+      title: true,
+      createdAt: true,
+    },
+  });
+
+  if (!session) {
+    throw new AppError("NOT_FOUND");
+  }
+
+  /*
+   * purgeContent không cho xóa version cũ nếu còn nextVersion,
+   * nên xóa version mới nhất trước.
+   */
+  const contents = await prisma.content.findMany({
+    where: {
+      classSessionId: sessionId,
+    },
+    select: {
+      id: true,
+      version: true,
+      createdAt: true,
+    },
+    orderBy: [
+      { version: "desc" },
+      { createdAt: "desc" },
+    ],
+  });
+
+  for (const content of contents) {
+    await purgeContent(
+      actor,
+      content.id,
+      `Xóa cùng buổi học: ${reason}`,
+      context,
+    );
+  }
+
+  return prisma.$transaction(
+    async (tx) => {
+      /*
+       * AttendanceAudit dùng Restrict → phải xóa trước Attendance.
+       */
+      await tx.attendanceAudit.deleteMany({
+        where: {
+          attendance: {
+            classSessionId: sessionId,
+          },
+        },
+      });
+
+      await tx.attendance.deleteMany({
+        where: {
+          classSessionId: sessionId,
+        },
+      });
+
+      await writeAuditLog(tx, {
+        actorId: actor.id,
+        actorRole: actor.role,
+        action: "CLASS_SESSION_PERMANENTLY_DELETED",
+        entityType: "ClassSession",
+        entityId: session.id,
+        oldValue: session,
+        reason,
+        context,
+      });
+
+      await tx.classSession.delete({
+        where: {
+          id: sessionId,
+        },
+      });
+
+      return {
+        id: sessionId,
+        deleted: true,
+      };
+    },
+    {
+      isolationLevel: "Serializable",
+    },
+  );
 }

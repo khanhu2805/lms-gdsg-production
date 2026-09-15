@@ -37,7 +37,7 @@ export function ResourceEditor({
     );
   }
   if (data.section === "subjects") {
-    return <SubjectEditor mode={data.mode} entity={data.entity} />;
+    return <SubjectEditor mode={data.mode} entity={data.entity} actorRole={actor.role}/>;
   }
   if (data.section === "classes") {
     return (
@@ -48,6 +48,7 @@ export function ResourceEditor({
         subjects={data.options.subjects}
         classes={data.options.classes}
         users={data.options.users}
+        actorRole={actor.role}
       />
     );
   }

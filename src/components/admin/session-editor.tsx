@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionDialogs } from "@/components/ui/action-dialogs";
-import { CalendarX2, ClipboardCheck, DoorOpen, DoorClosed } from "lucide-react";
+import { CalendarX2, ClipboardCheck, DoorOpen, DoorClosed, Trash2 } from "lucide-react";
 
 import type { ResourceOption } from "@/modules/dashboard/resource-data";
 
@@ -60,7 +60,7 @@ export function SessionEditor({
   actorRole: string;
 }) {
   const router = useRouter();
-  const { requestReason } = useActionDialogs();
+  const { requestReason, confirmAction } = useActionDialogs();
   const session = entity as SessionDetail | null;
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{
@@ -96,9 +96,9 @@ export function SessionEditor({
         ...(session
           ? { reason: String(formData.get("reason") ?? "") }
           : {
-              classId: String(formData.get("classId") ?? ""),
-              sessionNumber: Number(formData.get("sessionNumber")),
-            }),
+            classId: String(formData.get("classId") ?? ""),
+            sessionNumber: Number(formData.get("sessionNumber")),
+          }),
         title: String(formData.get("title") ?? ""),
         description:
           String(formData.get("description") ?? "").trim() ||
@@ -174,7 +174,48 @@ export function SessionEditor({
       setBusy(false);
     }
   }
+  async function permanentlyDeleteSession() {
+    if (!session || actorRole !== "ADMIN") return;
 
+    const confirmed = await confirmAction({
+      title: "Xóa vĩnh viễn buổi học?",
+      description:
+        "Toàn bộ nội dung, tài liệu, video, bài tập, bài kiểm tra và dữ liệu điểm danh của buổi học sẽ bị xóa.",
+      confirmLabel: "Tiếp tục",
+      danger: true,
+    });
+
+    if (!confirmed) return;
+
+    const reason = await requestReason({
+      title: "Xác nhận xóa buổi học",
+      description:
+        "Thao tác này không thể khôi phục. Nhập lý do xóa để lưu vào nhật ký kiểm toán.",
+      label: "Lý do xóa",
+      placeholder: "Ví dụ: Buổi học được tạo nhầm...",
+      confirmLabel: "Xóa vĩnh viễn",
+      danger: true,
+      minLength: 3,
+    });
+
+    if (!reason) return;
+
+    startMutation();
+
+    try {
+      await apiRequest(`/api/v1/sessions/${session.id}/purge`, {
+        method: "DELETE",
+        ...jsonRequest({ reason }),
+      });
+
+      router.push("/dashboard/sessions");
+      router.refresh();
+    } catch (error) {
+      failMutation(error);
+    } finally {
+      setBusy(false);
+    }
+  }
   const form = (
     <form onSubmit={submit} className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
@@ -416,6 +457,17 @@ export function SessionEditor({
               >
                 <CalendarX2 className="mr-2 size-4" />
                 Hủy buổi học
+              </button>
+            ) : null}
+            {actorRole === "ADMIN" ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={permanentlyDeleteSession}
+                className={DANGER_BUTTON}
+              >
+                <Trash2 className="mr-2 size-4" />
+                Xóa vĩnh viễn
               </button>
             ) : null}
           </div>

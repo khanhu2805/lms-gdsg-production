@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionDialogs } from "@/components/ui/action-dialogs";
-import { ArchiveRestore, Ban } from "lucide-react";
+import { ArchiveRestore, Ban, Trash2 } from "lucide-react";
 
 import {
   apiRequest,
@@ -41,12 +41,17 @@ type SubjectDetail = {
 export function SubjectEditor({
   mode,
   entity,
+  actorRole,
 }: {
   mode: "create" | "detail";
   entity: unknown;
+  actorRole: string;
 }) {
   const router = useRouter();
-  const { requestReason } = useActionDialogs();
+  const {
+    requestReason,
+    confirmAction,
+  } = useActionDialogs();
   const subject = entity as SubjectDetail | null;
   const creating = mode === "create";
   const [busy, setBusy] = useState(false);
@@ -89,6 +94,51 @@ export function SubjectEditor({
           error instanceof Error ? error.message : "Không thể lưu môn học.",
         tone: "error",
       });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function permanentlyDeleteSubject() {
+    if (!entity || actorRole !== "ADMIN") {
+      return;
+    }
+
+    const confirmed =
+      await confirmAction({
+        title: "Xóa vĩnh viễn?",
+        description:
+          "Dữ liệu liên quan sẽ bị xóa và không thể khôi phục.",
+        confirmLabel: "Tiếp tục",
+        danger: true,
+      });
+
+    if (!confirmed) return;
+
+    const reason =
+      await requestReason({
+        title: "Xác nhận xóa vĩnh viễn",
+        description:
+          "Nhập lý do để lưu vào nhật ký kiểm toán.",
+        confirmLabel: "Xóa vĩnh viễn",
+        danger: true,
+      });
+
+    if (!reason) return;
+
+    setBusy(true);
+
+    try {
+      await apiRequest(
+        `/api/v1/subjects/${subject?.id}/purge`,
+        {
+          method: "DELETE",
+          ...jsonRequest({ reason }),
+        },
+      );
+
+      router.push("/dashboard/subjects");
+      router.refresh();
     } finally {
       setBusy(false);
     }
@@ -214,6 +264,17 @@ export function SubjectEditor({
                   <ArchiveRestore className="mr-2 size-4" />
                 )}
                 {subject.isActive ? "Ngừng sử dụng" : "Kích hoạt lại"}
+              </button>
+            ) : null}
+            {subject && actorRole === "ADMIN" ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={permanentlyDeleteSubject}
+                className={DANGER_BUTTON}
+              >
+                <Trash2 className="mr-2 size-4" />
+                Xóa vĩnh viễn
               </button>
             ) : null}
             <button disabled={busy} className={PRIMARY_BUTTON}>
