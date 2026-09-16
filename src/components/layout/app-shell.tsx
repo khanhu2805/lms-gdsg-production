@@ -165,7 +165,7 @@ export function AppShell({
           >
             <Menu className="size-5" />
           </button>
-          <label className="relative hidden max-w-lg flex-1 md:block">
+          {/* <label className="relative hidden max-w-lg flex-1 md:block">
             <span className="sr-only">Tìm kiếm</span>
             <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-[#98A2B3]" />
             <input
@@ -173,7 +173,7 @@ export function AppShell({
               placeholder="Tìm lớp, buổi học, nội dung…"
               className="h-11 w-full rounded-xl border border-[#E4E7EC] bg-[#F9FAFB] pr-4 pl-10 text-sm text-[#344054] placeholder:text-[#98A2B3]"
             />
-          </label>
+          </label> */}
           <div className="relative ml-auto">
             <button
               type="button"

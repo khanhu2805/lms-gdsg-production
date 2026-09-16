@@ -1,6 +1,3 @@
--- CreateSchema
-CREATE SCHEMA IF NOT EXISTS "public";
-
 -- CreateEnum
 CREATE TYPE "UserRole" AS ENUM ('ADMIN', 'MANAGER', 'TEACHER', 'TEACHING_ASSISTANT', 'STUDENT', 'PARENT');
 
@@ -24,6 +21,9 @@ CREATE TYPE "ClassSessionStatus" AS ENUM ('SCHEDULED', 'ONGOING', 'COMPLETED', '
 
 -- CreateEnum
 CREATE TYPE "ContentType" AS ENUM ('VIDEO', 'MATERIAL', 'ASSIGNMENT', 'QUIZ', 'LESSON');
+
+-- CreateEnum
+CREATE TYPE "MaterialPreviewStatus" AS ENUM ('PENDING', 'PROCESSING', 'READY', 'FAILED');
 
 -- CreateEnum
 CREATE TYPE "ContentPublicationStatus" AS ENUM ('DRAFT', 'PENDING_TEACHER_REVIEW', 'CHANGES_REQUESTED', 'APPROVED', 'PUBLISHED', 'REOPEN_REQUESTED', 'REOPENED', 'REJECTED', 'HIDDEN', 'ARCHIVED');
@@ -68,7 +68,7 @@ CREATE TYPE "ReportType" AS ENUM ('USERS', 'CLASSES', 'CAPACITY', 'ATTENDANCE', 
 CREATE TYPE "ReportStatus" AS ENUM ('PENDING', 'PROCESSING', 'READY', 'FAILED', 'EXPIRED');
 
 -- CreateEnum
-CREATE TYPE "JobType" AS ENUM ('PROCESS_VIDEO', 'CREATE_THUMBNAIL', 'GENERATE_HLS', 'DELETE_FILE', 'GENERATE_REPORT', 'FINALIZE_ATTENDANCE', 'CLEAN_TEMP_FILES');
+CREATE TYPE "JobType" AS ENUM ('PROCESS_VIDEO', 'CREATE_THUMBNAIL', 'GENERATE_HLS', 'DELETE_FILE', 'GENERATE_REPORT', 'FINALIZE_ATTENDANCE', 'CLEAN_TEMP_FILES', 'GENERATE_DOCUMENT_PREVIEW');
 
 -- CreateEnum
 CREATE TYPE "JobStatus" AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED');
@@ -156,6 +156,16 @@ CREATE TABLE "auth_verifications" (
     "updatedAt" TIMESTAMP(3),
 
     CONSTRAINT "auth_verifications_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "auth_rate_limits" (
+    "id" UUID NOT NULL,
+    "key" TEXT NOT NULL,
+    "count" INTEGER NOT NULL,
+    "lastRequest" BIGINT NOT NULL,
+
+    CONSTRAINT "auth_rate_limits_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -419,6 +429,9 @@ CREATE TABLE "materials" (
     "sizeBytes" BIGINT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
+    "previewStatus" "MaterialPreviewStatus" NOT NULL DEFAULT 'PENDING',
+    "previewStorageKey" TEXT,
+    "previewError" TEXT,
 
     CONSTRAINT "materials_pkey" PRIMARY KEY ("id")
 );
@@ -766,6 +779,9 @@ CREATE UNIQUE INDEX "auth_accounts_providerId_accountId_key" ON "auth_accounts"(
 CREATE INDEX "auth_verifications_identifier_idx" ON "auth_verifications"("identifier");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "auth_rate_limits_key_key" ON "auth_rate_limits"("key");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "subjects_code_key" ON "subjects"("code");
 
 -- CreateIndex
@@ -862,12 +878,6 @@ CREATE INDEX "assets_deletedAt_idx" ON "assets"("deletedAt");
 CREATE UNIQUE INDEX "recordings_contentId_key" ON "recordings"("contentId");
 
 -- CreateIndex
-CREATE INDEX "recordings_assetId_idx" ON "recordings"("assetId");
-
--- CreateIndex
-CREATE INDEX "recordings_thumbnailAssetId_idx" ON "recordings"("thumbnailAssetId");
-
--- CreateIndex
 CREATE INDEX "recordings_processingStatus_createdAt_idx" ON "recordings"("processingStatus", "createdAt");
 
 -- CreateIndex
@@ -884,9 +894,6 @@ CREATE INDEX "video_view_sessions_recordingId_startedAt_idx" ON "video_view_sess
 
 -- CreateIndex
 CREATE UNIQUE INDEX "materials_contentId_key" ON "materials"("contentId");
-
--- CreateIndex
-CREATE INDEX "materials_assetId_idx" ON "materials"("assetId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "assignments_contentId_key" ON "assignments"("contentId");
@@ -1199,113 +1206,3 @@ ALTER TABLE "permission_grants" ADD CONSTRAINT "permission_grants_scopeClassId_f
 
 -- AddForeignKey
 ALTER TABLE "system_settings" ADD CONSTRAINT "system_settings_updatedById_fkey" FOREIGN KEY ("updatedById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- Better Auth uses PostgreSQL-backed rate limiting so multiple app instances
--- share a single limit state.
-CREATE TABLE "auth_rate_limits" (
-  "id" UUID NOT NULL,
-  "key" TEXT NOT NULL,
-  "count" INTEGER NOT NULL,
-  "lastRequest" BIGINT NOT NULL,
-  CONSTRAINT "auth_rate_limits_pkey" PRIMARY KEY ("id")
-);
-
-CREATE UNIQUE INDEX "auth_rate_limits_key_key" ON "auth_rate_limits"("key");
-
--- Domain integrity constraints that cannot be expressed by Prisma attributes.
-ALTER TABLE "classes"
-  ADD CONSTRAINT "classes_capacity_positive" CHECK ("capacity" > 0),
-  ADD CONSTRAINT "classes_date_range_valid" CHECK ("startDate" <= "endDate"),
-  ADD CONSTRAINT "classes_version_positive" CHECK ("version" > 0);
-
-ALTER TABLE "class_sessions"
-  ADD CONSTRAINT "class_sessions_time_range_valid" CHECK ("startAt" < "endAt");
-
-ALTER TABLE "contents"
-  ADD CONSTRAINT "contents_version_positive" CHECK ("version" > 0);
-
-ALTER TABLE "assignments"
-  ADD CONSTRAINT "assignments_attempts_positive" CHECK ("maxAttempts" > 0),
-  ADD CONSTRAINT "assignments_score_nonnegative" CHECK ("maxScore" >= 0),
-  ADD CONSTRAINT "assignments_window_valid" CHECK ("opensAt" IS NULL OR "dueAt" IS NULL OR "opensAt" <= "dueAt");
-
-ALTER TABLE "assignment_questions"
-  ADD CONSTRAINT "assignment_questions_order_positive" CHECK ("order" > 0),
-  ADD CONSTRAINT "assignment_questions_score_nonnegative" CHECK ("score" >= 0);
-
-ALTER TABLE "quizzes"
-  ADD CONSTRAINT "quizzes_duration_positive" CHECK ("durationMinutes" > 0),
-  ADD CONSTRAINT "quizzes_attempts_positive" CHECK ("maxAttempts" > 0),
-  ADD CONSTRAINT "quizzes_score_nonnegative" CHECK ("maxScore" >= 0),
-  ADD CONSTRAINT "quizzes_window_valid" CHECK ("opensAt" IS NULL OR "closesAt" IS NULL OR "opensAt" < "closesAt");
-
-ALTER TABLE "quiz_questions"
-  ADD CONSTRAINT "quiz_questions_order_positive" CHECK ("order" > 0),
-  ADD CONSTRAINT "quiz_questions_score_nonnegative" CHECK ("score" >= 0);
-
-ALTER TABLE "video_progress"
-  ADD CONSTRAINT "video_progress_time_nonnegative" CHECK (
-    "currentTimeSeconds" >= 0 AND "durationSeconds" > 0 AND "totalWatchedSeconds" >= 0
-  ),
-  ADD CONSTRAINT "video_progress_percentage_valid" CHECK ("percentage" >= 0 AND "percentage" <= 100);
-
-ALTER TABLE "jobs"
-  ADD CONSTRAINT "jobs_attempts_valid" CHECK (
-    "attempts" >= 0 AND "maxAttempts" > 0 AND "attempts" <= "maxAttempts"
-  );
-
--- A class has at most one active primary teacher and a student has at most one
--- active primary parent. Historical rows remain intact.
-CREATE UNIQUE INDEX "class_teachers_one_active_primary"
-  ON "class_teachers" ("classId")
-  WHERE "type" = 'PRIMARY' AND "status" = 'ACTIVE';
-
-CREATE UNIQUE INDEX "parent_links_one_active_primary"
-  ON "parent_student_links" ("studentId")
-  WHERE "isPrimary" = true AND "status" = 'ACTIVE';
-
--- Content must always belong to the same class as its session.
-CREATE OR REPLACE FUNCTION "assert_content_session_class"()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM "class_sessions" s
-    WHERE s."id" = NEW."classSessionId"
-      AND s."classId" = NEW."classId"
-  ) THEN
-    RAISE EXCEPTION 'Content class and class session do not match'
-      USING ERRCODE = '23514';
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER "contents_session_class_guard"
-  BEFORE INSERT OR UPDATE OF "classId", "classSessionId"
-  ON "contents"
-  FOR EACH ROW
-  EXECUTE FUNCTION "assert_content_session_class"();
-
--- Audit history is append-only at database level.
-CREATE OR REPLACE FUNCTION "prevent_history_mutation"()
-RETURNS trigger
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  RAISE EXCEPTION 'Historical audit records are append-only'
-    USING ERRCODE = '55000';
-END;
-$$;
-
-CREATE TRIGGER "audit_logs_immutable"
-  BEFORE UPDATE OR DELETE ON "audit_logs"
-  FOR EACH ROW
-  EXECUTE FUNCTION "prevent_history_mutation"();
-
-CREATE TRIGGER "attendance_audits_immutable"
-  BEFORE UPDATE OR DELETE ON "attendance_audits"
-  FOR EACH ROW
-  EXECUTE FUNCTION "prevent_history_mutation"();
