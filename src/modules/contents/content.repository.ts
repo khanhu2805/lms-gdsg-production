@@ -25,7 +25,12 @@ export function findContentForWorkflow(contentId: string) {
       },
       lesson: true,
       material: true,
-      recording: true,
+      recording: {
+        include: {
+          asset: true,
+          hlsSizeBytes: true,
+        },
+      },
       assignment: {
         include: {
           questions: {

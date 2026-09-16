@@ -861,6 +861,10 @@ export async function getContentDetail(actor: Actor, contentId: string) {
                 durationSeconds: content.recording.durationSeconds,
                 width: content.recording.width,
                 height: content.recording.height,
+                sourceSizeBytes: content.recording.asset.sizeBytes.toString(),
+
+                hlsSizeBytes:
+                  content.recording.hlsSizeBytes?.toString() ?? null,
                 authorizeUrl: `/api/v1/videos/${content.recording.id}/authorize`,
               }
             : content.type === "ASSIGNMENT" && content.assignment

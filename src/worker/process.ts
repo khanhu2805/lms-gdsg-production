@@ -50,6 +50,31 @@ function safeStoragePath(storageKey: string) {
   return resolved;
 }
 
+async function directorySizeBytes(directory: string): Promise<bigint> {
+  const entries = await readdir(directory, {
+    withFileTypes: true,
+  });
+
+  let total = 0n;
+
+  for (const entry of entries) {
+    const target = path.join(directory, entry.name);
+
+    if (entry.isDirectory()) {
+      total += await directorySizeBytes(target);
+      continue;
+    }
+
+    if (entry.isFile()) {
+      const fileStat = await stat(target);
+
+      total += BigInt(fileStat.size);
+    }
+  }
+
+  return total;
+}
+
 async function runProcess(
   executable: string,
   args: string[],
@@ -282,11 +307,21 @@ async function processVideo(recordingId: string) {
     },
   });
   if (!recording) throw new Error("Không tìm thấy bản ghi video.");
+  if (recording.processingStatus === "READY" && recording.hlsManifestKey) {
+    return {
+      recordingId: recording.id,
+
+      hlsManifestKey: recording.hlsManifestKey,
+
+      alreadyProcessed: true,
+    };
+  }
   if (recording.asset.status !== "READY" || recording.asset.deletedAt) {
     throw new Error("File video nguồn không sẵn sàng.");
   }
 
-  const sourcePath = safeStoragePath(recording.asset.storageKey);
+  const sourceStorageKey = recording.asset.storageKey;
+  const sourcePath = safeStoragePath(sourceStorageKey);
   await stat(sourcePath);
   const hlsDirectory = safeStoragePath(`recordings/hls/${recording.id}`);
   const thumbnailKey = `thumbnails/${randomUUID()}.jpg`;
@@ -366,8 +401,22 @@ async function processVideo(recordingId: string) {
   ]);
 
   const thumbnailBuffer = await readFile(thumbnailPath);
-  const checksum = createHash("sha256").update(thumbnailBuffer).digest("hex");
+
+  const thumbnailChecksum = createHash("sha256")
+    .update(thumbnailBuffer)
+    .digest("hex");
+
   const hlsManifestKey = `recordings/hls/${recording.id}/index.m3u8`;
+
+  const hlsSizeBytes = await directorySizeBytes(hlsDirectory);
+
+  const hlsManifestPath = safeStoragePath(hlsManifestKey);
+
+  const hlsManifestBuffer = await readFile(hlsManifestPath);
+
+  const hlsChecksum = createHash("sha256")
+    .update(hlsManifestBuffer)
+    .digest("hex");
 
   await prisma.$transaction(async (tx) => {
     const thumbnail = await tx.asset.create({
@@ -377,9 +426,28 @@ async function processVideo(recordingId: string) {
         originalName: `${recording.content.title}.jpg`,
         mimeType: "image/jpeg",
         sizeBytes: BigInt(thumbnailBuffer.byteLength),
-        checksum,
+        checksum: thumbnailChecksum,
         status: "READY",
         uploadedById: recording.asset.uploadedById,
+      },
+    });
+    await tx.asset.update({
+      where: {
+        id: recording.assetId,
+      },
+
+      data: {
+        storageKey: hlsManifestKey,
+
+        mimeType: "application/vnd.apple.mpegurl",
+
+        sizeBytes: hlsSizeBytes,
+
+        checksum: hlsChecksum,
+
+        status: "READY",
+
+        deletedAt: null,
       },
     });
     await tx.recording.update({
@@ -395,19 +463,15 @@ async function processVideo(recordingId: string) {
         errorMessage: null,
       },
     });
-  });
-  await rm(sourcePath, {
-    force: true,
-  });
+    await tx.job.create({
+      data: {
+        type: "DELETE_FILE",
 
-  await prisma.asset.update({
-    where: {
-      id: recording.assetId,
-    },
-    data: {
-      status: "DELETED",
-      deletedAt: new Date(),
-    },
+        payload: {
+          storageKey: sourceStorageKey,
+        },
+      },
+    });
   });
   return {
     recordingId,
@@ -415,6 +479,7 @@ async function processVideo(recordingId: string) {
     width: videoStream.width,
     height: videoStream.height,
     hlsManifestKey,
+    sizeBytes: hlsSizeBytes.toString(),
   };
 }
 
