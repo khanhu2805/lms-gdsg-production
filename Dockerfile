@@ -62,4 +62,4 @@ COPY . .
 RUN DATABASE_URL=postgresql://lms:build-only@localhost:5432/lms_gdsg?schema=public \
     DIRECT_URL=postgresql://lms:build-only@localhost:5432/lms_gdsg?schema=public \
     npm run db:generate
-CMD ["npm", "run", "db:deploy"]
+CMD ["sh", "-c", "npm run db:deploy && npm run db:seed"]
