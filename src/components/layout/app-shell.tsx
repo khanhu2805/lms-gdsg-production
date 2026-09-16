@@ -8,7 +8,6 @@ import {
   LogOut,
   Menu,
   PanelLeftClose,
-  Search,
   X,
 } from "lucide-react";
 
