@@ -55,7 +55,7 @@ async function directorySizeBytes(directory: string): Promise<bigint> {
     withFileTypes: true,
   });
 
-  let total = 0n;
+  let total = BigInt(0);
 
   for (const entry of entries) {
     const target = path.join(directory, entry.name);

@@ -28,7 +28,6 @@ export function findContentForWorkflow(contentId: string) {
       recording: {
         include: {
           asset: true,
-          hlsSizeBytes: true,
         },
       },
       assignment: {
