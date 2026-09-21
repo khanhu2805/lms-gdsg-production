@@ -254,12 +254,50 @@ async function seedDemo(adminId: string) {
   }
 }
 
+async function ensureAdmin() {
+  const email =
+    env.SEED_ADMIN_EMAIL
+      .trim()
+      .toLowerCase();
+
+  const existing =
+    await prisma.user.findUnique({
+      where: { email },
+    });
+
+  if (existing) {
+    console.info(
+      `Admin đã tồn tại: ${existing.email}. Bỏ qua tạo mới.`,
+    );
+
+    return existing;
+  }
+
+  const admin =
+    await prisma.user.create({
+      data: {
+        email,
+        emailVerified: true,
+        name: env.SEED_ADMIN_NAME,
+        role: "ADMIN",
+        status: "ACTIVE",
+      },
+    });
+
+  console.info(
+    `Đã tạo admin ban đầu: ${admin.email}`,
+  );
+
+  return admin;
+}
+
 async function main() {
-  const admin = await upsertUser({
-    email: env.SEED_ADMIN_EMAIL,
-    name: env.SEED_ADMIN_NAME,
-    role: "ADMIN",
-  });
+  // const admin = await upsertUser({
+  //   email: env.SEED_ADMIN_EMAIL,
+  //   name: env.SEED_ADMIN_NAME,
+  //   role: "ADMIN",
+  // });
+  const admin = await ensureAdmin();
 
   if (env.SEED_DEMO) {
     if (env.NODE_ENV === "production") {

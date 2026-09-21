@@ -130,10 +130,22 @@ export const auth = betterAuth({
           );
         },
         after: async (session) => {
-          await prisma.user.update({
+          const user = await prisma.user.update({
             where: { id: session.userId },
             data: { lastLoginAt: new Date() },
+            select: { role: true },
           });
+          if (user.role === "STUDENT") {
+            await prisma.session.deleteMany({
+              where: {
+                userId: session.userId,
+
+                id: {
+                  not: session.id,
+                },
+              },
+            });
+          }
         },
       },
     },
