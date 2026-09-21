@@ -122,71 +122,29 @@ export const auth = betterAuth({
             },
           });
 
-          // Chỉ chặn khi tài khoản không hợp lệ.
-          if (
-            !user ||
-            user.status !== "ACTIVE" ||
-            user.lockedAt ||
-            user.deletedAt
-          ) {
-            return false;
-          }
-
-          // Không cần return true.
-          // Không return gì => cho Better Auth tiếp tục tạo session.
-          return;
+          return Boolean(
+            user &&
+            user.status === "ACTIVE" &&
+            !user.lockedAt &&
+            !user.deletedAt,
+          );
         },
         after: async (session) => {
-          try {
-            const user = await prisma.user.update({
-              where: { id: session.userId },
-              data: { lastLoginAt: new Date() },
-              select: { role: true, id: true },
-            });
-            if (!user) {
-              return;
-            }
-            await prisma.user.update({
+          const user = await prisma.user.update({
+            where: { id: session.userId },
+            data: { lastLoginAt: new Date() },
+            select: { role: true },
+          });
+          if (user.role === "STUDENT") {
+            await prisma.session.deleteMany({
               where: {
-                id: user.id,
-              },
-              data: {
-                lastLoginAt: new Date(),
+                userId: session.userId,
+
+                id: {
+                  not: session.id,
+                },
               },
             });
-            if (user.role === "STUDENT") {
-              const result = await prisma.session.deleteMany({
-                where: {
-                  userId: session.userId,
-
-                  token: {
-                    not: session.token,
-                  },
-                },
-              });
-
-              logger.info(
-                {
-                  userId: session.userId,
-                  revokedSessions: result.count,
-                },
-                "Revoked previous student sessions",
-              );
-            }
-          } catch (error) {
-            logger.error(
-              {
-                userId: session.userId,
-                error:
-                  error instanceof Error
-                    ? {
-                        name: error.name,
-                        message: error.message,
-                      }
-                    : String(error),
-              },
-              "Failed to enforce single student session",
-            );
           }
         },
       },
