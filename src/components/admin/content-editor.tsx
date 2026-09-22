@@ -727,7 +727,7 @@ export function ContentEditor({
               </Field>
             </div>
           ) : null}
-          {content &&
+          {/* {content &&
             type === "MATERIAL" ? (
             <div className="space-y-3">
               <p className="rounded-xl bg-[#F2F4F7] p-4 text-sm text-[#475467]">
@@ -771,7 +771,7 @@ export function ContentEditor({
                 ) : null}
               </div>
             </div>
-          ) : null}
+          ) : null} */}
           {content && type === "VIDEO" ? (
             <p className="rounded-xl bg-[#F2F4F7] p-4 text-sm text-[#475467]">
               Trạng thái xử lý: {payload?.processingStatus ?? "—"}
@@ -1229,6 +1229,57 @@ export function ContentEditor({
           >
             Xem trình phát video
           </Link>
+        ) : null}
+        {content.type === "MATERIAL" ? (
+          <div className="mt-4 space-y-3">
+            <div className="rounded-xl border border-[#E4E7EC] bg-[#F9FAFB] p-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-[#667085]">
+                  Trạng thái bản xem:
+                </span>
+
+                <span className="text-sm font-semibold text-[#344054]">
+                  {content.payload.previewStatus === "READY"
+                    ? "Sẵn sàng"
+                    : content.payload.previewStatus === "PROCESSING"
+                      ? "Đang xử lý"
+                      : content.payload.previewStatus === "FAILED"
+                        ? "Xử lý thất bại"
+                        : content.payload.previewStatus === "PENDING"
+                          ? "Đang chờ xử lý"
+                          : "Chưa có"}
+                </span>
+              </div>
+
+              {content.payload.previewError ? (
+                <p className="mt-2 text-sm text-red-600">
+                  {content.payload.previewError}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              {content.payload.viewUrl ? (
+                <Link
+                  href={content.payload.viewUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={PRIMARY_BUTTON}
+                >
+                  Xem tài liệu
+                </Link>
+              ) : null}
+
+              {content.payload.downloadUrl ? (
+                <Link
+                  href={content.payload.downloadUrl}
+                  className={SECONDARY_BUTTON}
+                >
+                  Tải file gốc
+                </Link>
+              ) : null}
+            </div>
+          </div>
         ) : null}
       </SectionCard>
 
