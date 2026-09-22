@@ -6,9 +6,9 @@ const meetingUrlSchema = z
   .refine(
     (value) => {
       const url = new URL(value);
-      return url.protocol === "https:" && url.hostname === "meet.google.com";
+      return url.protocol === "https:";
     },
-    { message: "Link phòng học phải là URL HTTPS của Google Meet." },
+    { message: "Link phòng học phải là URL HTTPS" },
   );
 
 const baseSessionFields = {

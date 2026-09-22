@@ -298,7 +298,7 @@ export function SessionEditor({
         </Field>
         <Field
           label="Link Google Meet"
-          hint="Chỉ chấp nhận https://meet.google.com/..."
+          hint="Chỉ chấp nhận https://..."
         >
           <input
             type="url"
