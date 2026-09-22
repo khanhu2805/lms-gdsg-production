@@ -1,6 +1,10 @@
 name: lms-gdsg
 
 x-app-environment: &app-environment
+  HTTPS_PROXY: "http://125.212.245.10:3128"
+  HTTP_PROXY: "http://125.212.245.10:3128"
+  NODE_USE_ENV_PROXY: "1"
+  NO_PROXY: "localhost,127.0.0.1,db,redis"
   NODE_ENV: production
   NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost}
   BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost}
