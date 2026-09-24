@@ -95,15 +95,35 @@ function profileFromForm(formData: FormData) {
   const dateOfBirth = nullable(formData, "dateOfBirth");
   return {
     phone: nullable(formData, "phone"),
-    studentCode: nullable(formData, "studentCode"),
-    teacherCode: nullable(formData, "teacherCode"),
-    assistantCode: nullable(formData, "assistantCode"),
-    parentCode: nullable(formData, "parentCode"),
+    // studentCode: nullable(formData, "studentCode"),
+    // teacherCode: nullable(formData, "teacherCode"),
+    // assistantCode: nullable(formData, "assistantCode"),
+    // parentCode: nullable(formData, "parentCode"),
     dateOfBirth: dateOfBirth || null,
     address: nullable(formData, "address"),
     bio: nullable(formData, "bio"),
     emergencyContact: nullable(formData, "emergencyContact"),
   };
+}
+function accountCode(
+  user: UserDetail,
+) {
+  switch (user.role) {
+    case "STUDENT":
+      return user.profile?.studentCode;
+
+    case "TEACHER":
+      return user.profile?.teacherCode;
+
+    case "TEACHING_ASSISTANT":
+      return user.profile?.assistantCode;
+
+    case "PARENT":
+      return user.profile?.parentCode;
+
+    default:
+      return null;
+  }
 }
 
 export function UserEditor({
@@ -332,7 +352,7 @@ export function UserEditor({
           className={INPUT_CLASS}
         />
       </Field>
-      <Field label="Mã học sinh">
+      {/* <Field label="Mã học sinh">
         <input
           name="studentCode"
           defaultValue={profile?.studentCode ?? ""}
@@ -359,7 +379,11 @@ export function UserEditor({
           defaultValue={profile?.parentCode ?? ""}
           className={INPUT_CLASS}
         />
-      </Field>
+      </Field> */}
+      <div className="rounded-xl border border-[#E4E7EC] bg-[#F9FAFB] p-4 text-sm text-[#667085]">
+        Mã tài khoản sẽ được hệ thống tự động tạo
+        theo vai trò sau khi lưu.
+      </div>
       <Field label="Địa chỉ" className="sm:col-span-2">
         <input
           name="address"
@@ -459,6 +483,16 @@ export function UserEditor({
       <MutationNotice {...notice} />
       <SectionCard title="Thông tin tài khoản">
         <dl className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <dt className="text-[#667085]">
+              Mã tài khoản
+            </dt>
+
+            <dd className="mt-1 font-semibold text-[#172033]">
+              {accountCode(user) ??
+                "Không áp dụng"}
+            </dd>
+          </div>
           <div>
             <dt className="text-[#667085]">Email</dt>
             <dd className="mt-1 font-semibold text-[#172033]">{user.email}</dd>

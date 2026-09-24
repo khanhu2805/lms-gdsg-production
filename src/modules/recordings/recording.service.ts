@@ -48,41 +48,94 @@ export async function authorizeRecordingPlayback(
     throw new AppError("CONFLICT", "Video chưa sẵn sàng để phát.");
   }
 
-  const cutoff = new Date(Date.now() - 90_000);
-  const viewSession = existingViewSessionId
-    ? await prisma.videoViewSession.findFirst({
-        where: {
-          id: existingViewSessionId,
-          userId: actor.id,
-          recordingId,
-          status: "ACTIVE",
-          lastSeenAt: { gt: cutoff },
+  const now = new Date();
+  const cutoff = new Date(now.getTime() - 90_000);
+
+  let session: { id: string } | null = null;
+
+  /*
+   * Nếu browser gửi lại viewSessionId của chính nó,
+   * tiếp tục sử dụng phiên đó thay vì tạo phiên mới.
+   *
+   * Không buộc recordingId phải giống nhau:
+   * cùng browser có thể chuyển sang video khác và
+   * vẫn sử dụng một phiên xem duy nhất.
+   */
+  if (existingViewSessionId) {
+    const existingSession = await prisma.videoViewSession.findFirst({
+      where: {
+        id: existingViewSessionId,
+        userId: actor.id,
+        status: "ACTIVE",
+        lastSeenAt: {
+          gt: cutoff,
         },
-        select: { id: true },
-      })
-    : null;
-  if (existingViewSessionId && !viewSession) {
-    throw new AppError("FORBIDDEN", "Phiên xem video không còn hiệu lực.");
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingSession) {
+      await prisma.videoViewSession.update({
+        where: {
+          id: existingSession.id,
+        },
+        data: {
+          recordingId,
+          lastSeenAt: now,
+        },
+      });
+
+      session = {
+        id: existingSession.id,
+      };
+    }
   }
 
-  let session = viewSession;
   if (!session) {
     session = await prisma.$transaction(
       async (tx) => {
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`video:${actor.id}`}))`;
+        await tx.$executeRaw`
+        SELECT pg_advisory_xact_lock(
+          hashtext(${`video:${actor.id}`})
+        )
+      `;
+
+        /*
+         * Dọn các phiên quá 90 giây.
+         */
+        await tx.videoViewSession.updateMany({
+          where: {
+            userId: actor.id,
+            status: "ACTIVE",
+            lastSeenAt: {
+              lte: cutoff,
+            },
+          },
+          data: {
+            status: "ENDED",
+            endedAt: now,
+          },
+        });
+
         const activeSessions = await tx.videoViewSession.count({
           where: {
             userId: actor.id,
             status: "ACTIVE",
-            lastSeenAt: { gt: cutoff },
+            lastSeenAt: {
+              gt: cutoff,
+            },
           },
         });
+
         if (activeSessions >= env.MAX_CONCURRENT_VIDEO_SESSIONS) {
           throw new AppError(
             "CONFLICT",
             "Tài khoản đã đạt giới hạn phiên xem video đồng thời.",
           );
         }
+
         return tx.videoViewSession.create({
           data: {
             userId: actor.id,
@@ -90,10 +143,14 @@ export async function authorizeRecordingPlayback(
             ipAddress: metadata?.ipAddress,
             userAgent: metadata?.userAgent,
           },
-          select: { id: true },
+          select: {
+            id: true,
+          },
         });
       },
-      { isolationLevel: "Serializable" },
+      {
+        isolationLevel: "Serializable",
+      },
     );
   } else {
     await prisma.videoViewSession.update({

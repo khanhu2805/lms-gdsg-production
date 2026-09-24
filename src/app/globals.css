@@ -68,3 +68,7 @@ a {
     animation-iteration-count: 1 !important;
   }
 }
+
+.protected-video::-webkit-media-controls-fullscreen-button {
+  display: none !important;
+}

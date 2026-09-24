@@ -45,6 +45,7 @@ RUN apt-get update \
     libreoffice-writer \
     libreoffice-calc \
     libreoffice-impress \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 COPY . .
 RUN DATABASE_URL=postgresql://lms:build-only@localhost:5432/lms_gdsg?schema=public \

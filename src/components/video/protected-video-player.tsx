@@ -2,7 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
-import { LoaderCircle, Play } from "lucide-react";
+import {
+  LoaderCircle,
+  Maximize2,
+  Minimize2,
+  Play,
+} from "lucide-react";
 
 type PlaybackData = {
   streamUrl: string;
@@ -41,6 +46,10 @@ export function ProtectedVideoPlayer({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const [position, setPosition] = useState(0);
+  const containerRef =
+    useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] =
+    useState(false);
 
   useEffect(() => {
     if (!playback) return;
@@ -79,16 +88,82 @@ export function ProtectedVideoPlayer({
     [],
   );
 
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(
+        document.fullscreenElement ===
+        containerRef.current,
+      );
+    };
+
+    document.addEventListener(
+      "fullscreenchange",
+      handleFullscreenChange,
+    );
+
+    return () => {
+      document.removeEventListener(
+        "fullscreenchange",
+        handleFullscreenChange,
+      );
+    };
+  }, []);
+
+  async function toggleFullscreen() {
+    const container =
+      containerRef.current;
+
+    if (!container) return;
+
+    if (
+      document.fullscreenElement ===
+      container
+    ) {
+      await document.exitFullscreen();
+      return;
+    }
+
+    await container.requestFullscreen();
+  }
+
   async function startPlayback() {
     setPending(true);
     setError(undefined);
     try {
-      const response = await fetch(`/api/v1/videos/${recordingId}/authorize`, {
-        method: "POST",
-        credentials: "same-origin",
-      });
+      const storageKey =
+        "lms-video-view-session";
+
+      const existingViewSessionId =
+        window.localStorage.getItem(
+          storageKey,
+        );
+
+      const authorizeUrl =
+        new URL(
+          `/api/v1/videos/${recordingId}/authorize`,
+          window.location.origin,
+        );
+
+      if (existingViewSessionId) {
+        authorizeUrl.searchParams.set(
+          "viewSessionId",
+          existingViewSessionId,
+        );
+      }
+
+      const response = await fetch(
+        `${authorizeUrl.pathname}${authorizeUrl.search}`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+        },
+      );
       const result = (await response.json()) as ApiEnvelope<PlaybackData>;
       if (!result.success) throw new Error(result.error.message);
+      window.localStorage.setItem(
+        storageKey,
+        result.data.viewSessionId,
+      );
       const video = videoRef.current;
       if (!video) throw new Error("Không khởi tạo được trình phát.");
 
@@ -126,8 +201,11 @@ export function ProtectedVideoPlayer({
   return (
     <section>
       <div
+        ref={containerRef}
         className="relative aspect-video overflow-hidden rounded-2xl bg-[#101828] shadow-xl"
-        onContextMenu={(event) => event.preventDefault()}
+        onContextMenu={(event) =>
+          event.preventDefault()
+        }
       >
         <video
           ref={videoRef}
@@ -135,16 +213,16 @@ export function ProtectedVideoPlayer({
           controlsList="nodownload"
           disablePictureInPicture
           playsInline
-          className="size-full bg-black object-contain"
+          className="protected-video size-full bg-black object-contain"
         >
           Trình duyệt của bạn không hỗ trợ video HTML5.
         </video>
 
         {!playback ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-[radial-gradient(circle_at_center,#25396f_0%,#101828_70%)] p-6 text-center">
-            <span className="flex size-16 items-center justify-center rounded-full bg-white/10 text-white ring-1 ring-white/20">
+            {/* <span className="flex size-16 items-center justify-center rounded-full bg-white/10 text-white ring-1 ring-white/20">
               <Play aria-hidden="true" className="ml-1 size-7" />
-            </span>
+            </span> */}
             <p className="mt-5 text-sm text-blue-100">
               Quyền truy cập sẽ được kiểm tra trước khi phát.
             </p>
@@ -178,6 +256,24 @@ export function ProtectedVideoPlayer({
               {playback.watermark.sessionCode}
             </p>
           </div>
+        ) : null}
+        {playback ? (
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="absolute bottom-14 right-4 z-20 flex size-10 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur hover:bg-black/75"
+            aria-label={
+              isFullscreen
+                ? "Thoát toàn màn hình"
+                : "Toàn màn hình"
+            }
+          >
+            {isFullscreen ? (
+              <Minimize2 className="size-5" />
+            ) : (
+              <Maximize2 className="size-5" />
+            )}
+          </button>
         ) : null}
       </div>
       {error ? (

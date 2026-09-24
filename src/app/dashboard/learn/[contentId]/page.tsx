@@ -11,11 +11,43 @@ import { ProtectedVideoPlayer } from "@/components/video/protected-video-player"
 import { requireActor } from "@/lib/auth/actor";
 import { prisma } from "@/lib/database/client";
 import { getContentDetail } from "@/modules/contents/content.service";
+import {
+  ProtectedDocumentViewer,
+} from "@/components/material/protected-document-viewer";
 
 export const dynamic = "force-dynamic";
 
 export default async function LearnerContentPage({ params }: { params: Promise<{ contentId: string }> }) {
   const actor = await requireActor();
+  const profile =
+    await prisma.profile.findUnique({
+      where: {
+        userId:
+          actor.id,
+      },
+      select: {
+        studentCode:
+          true,
+
+        parentCode:
+          true,
+      },
+    });
+
+  const watermark =
+    [
+      actor.name,
+
+      profile?.studentCode ??
+      profile?.parentCode ??
+      actor.id
+        .slice(0, 8)
+        .toUpperCase(),
+
+      actor.email,
+    ]
+      .filter(Boolean)
+      .join(" • ");
   const { contentId } = await params;
   if (actor.role !== "STUDENT" && actor.role !== "PARENT") redirect(`/dashboard/contents/${contentId}`);
 
@@ -33,7 +65,9 @@ export default async function LearnerContentPage({ params }: { params: Promise<{
 
       {content.type === "LESSON" && payload ? <article className="prose prose-slate max-w-none rounded-2xl border border-[#E4E7EC] bg-white p-5 sm:p-7"><ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>{String(payload.markdownContent ?? "")}</ReactMarkdown></article> : null}
 
-      {content.type === "MATERIAL" && payload ? (
+      {content.type ===
+        "MATERIAL" &&
+        payload ? (
         <section className="overflow-hidden rounded-2xl border border-[#E4E7EC] bg-white">
           <div className="border-b border-[#E4E7EC] p-5 sm:p-6">
             <h2 className="font-semibold text-[#172033]">
@@ -46,25 +80,26 @@ export default async function LearnerContentPage({ params }: { params: Promise<{
                 content.title,
               )}
             </p>
+
+            <p className="mt-2 text-xs text-[#98A2B3]">
+              Tài liệu được bảo vệ và gắn thông tin người xem.
+            </p>
           </div>
 
           {payload.previewStatus ===
             "READY" &&
-            payload.viewUrl ? (
-            <iframe
-              src={`${String(
-                payload.viewUrl,
-              )}#toolbar=0&navpanes=0`}
-              title={String(
-                payload.title ??
-                content.title,
+            payload.materialId ? (
+            <ProtectedDocumentViewer
+              materialId={String(
+                payload.materialId,
               )}
-              className="h-[75vh] min-h-[600px] w-full border-0"
+              watermark={
+                watermark
+              }
             />
           ) : (
             <div className="p-6 text-sm text-[#667085]">
               Tài liệu đang được xử lý.
-              Vui lòng quay lại sau.
             </div>
           )}
         </section>

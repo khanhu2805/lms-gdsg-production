@@ -70,21 +70,44 @@ export async function GET(
 
 export async function POST(
   request: Request,
-  { params }: { params: Promise<{ recordingId: string }> },
+  {
+    params,
+  }: {
+    params: Promise<{
+      recordingId: string;
+    }>;
+  },
 ) {
   const context = getRequestContext(request.headers);
+
   try {
     const actor = await requireActor(request.headers);
+
     const { recordingId } = await params;
+
+    const existingViewSessionId = z
+      .uuid()
+      .optional()
+      .parse(
+        new URL(request.url).searchParams.get("viewSessionId") ?? undefined,
+      );
+
     const playback = await authorizeRecordingPlayback(
       actor,
       recordingId,
       context,
+      existingViewSessionId,
     );
+
     return apiSuccess({
-      streamUrl: `/api/v1/videos/${recordingId}/authorize?viewSessionId=${encodeURIComponent(playback.viewSessionId)}`,
+      streamUrl: `/api/v1/videos/${recordingId}/authorize?viewSessionId=${encodeURIComponent(
+        playback.viewSessionId,
+      )}`,
+
       viewSessionId: playback.viewSessionId,
+
       mimeType: playback.mimeType,
+
       watermark: playback.watermark,
     });
   } catch (error) {

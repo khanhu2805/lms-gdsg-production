@@ -23,6 +23,7 @@ const OFFICE_PREVIEW_MIME_TYPES = new Set([
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 ]);
+const PDF_MIME_TYPE = "application/pdf";
 function payloadObject(payload: unknown): JsonObject {
   if (!payload || Array.isArray(payload) || typeof payload !== "object") {
     throw new Error("Payload của job không hợp lệ.");
@@ -117,6 +118,96 @@ type ProbeOutput = {
   }>;
   format?: { duration?: string };
 };
+type MaterialPagesManifest = {
+  version: 1;
+  pageCount: number;
+  files: string[];
+};
+
+function pageNumber(fileName: string) {
+  const match = /^page-(\d+)\.jpg$/i.exec(fileName);
+
+  return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
+}
+
+async function renderPdfPages(pdfPath: string, materialId: string) {
+  const pagesStorageKey = `documents/previews/pages/${materialId}`;
+
+  const pagesDirectory = safeStoragePath(pagesStorageKey);
+
+  /*
+   * Nếu material được xử lý lại,
+   * xóa pages cũ trước.
+   */
+  await rm(pagesDirectory, {
+    recursive: true,
+    force: true,
+  });
+
+  await mkdir(pagesDirectory, {
+    recursive: true,
+    mode: 0o755,
+  });
+
+  const outputPrefix = path.join(pagesDirectory, "page");
+
+  await runProcess(
+    "pdftoppm",
+    [
+      "-jpeg",
+      "-jpegopt",
+      "quality=85",
+
+      /*
+       * 150 DPI đủ rõ cho màn hình
+       * nhưng nhẹ hơn ảnh độ phân giải rất cao.
+       */
+      "-r",
+      "150",
+
+      pdfPath,
+      outputPrefix,
+    ],
+    true,
+  );
+
+  const entries = await readdir(pagesDirectory, {
+    withFileTypes: true,
+  });
+
+  const files = entries
+    .filter((entry) => entry.isFile() && /^page-\d+\.jpg$/i.test(entry.name))
+    .map((entry) => entry.name)
+    .sort((a, b) => pageNumber(a) - pageNumber(b));
+
+  if (!files.length) {
+    throw new Error("Không tạo được ảnh trang tài liệu.");
+  }
+
+  for (const file of files) {
+    await chmod(path.join(pagesDirectory, file), 0o644);
+  }
+
+  const manifest: MaterialPagesManifest = {
+    version: 1,
+    pageCount: files.length,
+    files,
+  };
+
+  await writeFile(
+    path.join(pagesDirectory, "manifest.json"),
+    JSON.stringify(manifest, null, 2),
+    {
+      encoding: "utf8",
+      mode: 0o644,
+    },
+  );
+
+  return {
+    pagesStorageKey,
+    pageCount: files.length,
+  };
+}
 async function generateDocumentPreview(materialId: string) {
   const material = await prisma.material.findUnique({
     where: {
@@ -140,20 +231,91 @@ async function generateDocumentPreview(materialId: string) {
    * Dùng luôn file gốc làm bản xem.
    */
   if (!OFFICE_PREVIEW_MIME_TYPES.has(material.mimeType)) {
+    /*
+     * PDF: render thành từng trang ảnh.
+     */
+    if (material.mimeType === PDF_MIME_TYPE) {
+      await prisma.material.update({
+        where: {
+          id: material.id,
+        },
+        data: {
+          previewStatus: "PROCESSING",
+          previewError: null,
+        },
+      });
+
+      try {
+        const sourcePath = safeStoragePath(material.asset.storageKey);
+
+        await stat(sourcePath);
+
+        const pages = await renderPdfPages(sourcePath, material.id);
+
+        await prisma.material.update({
+          where: {
+            id: material.id,
+          },
+          data: {
+            previewStatus: "READY",
+
+            /*
+             * Vẫn giữ PDF làm preview cho staff.
+             */
+            previewStorageKey: material.asset.storageKey,
+
+            previewError: null,
+          },
+        });
+
+        return {
+          materialId: material.id,
+
+          converted: false,
+
+          previewStorageKey: material.asset.storageKey,
+
+          pageCount: pages.pageCount,
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+
+        await prisma.material.update({
+          where: {
+            id: material.id,
+          },
+          data: {
+            previewStatus: "FAILED",
+
+            previewError: message.slice(0, 2000),
+          },
+        });
+
+        throw error;
+      }
+    }
+
+    /*
+     * Ảnh / txt tạm thời giữ behavior cũ.
+     */
     await prisma.material.update({
       where: {
         id: material.id,
       },
       data: {
         previewStatus: "READY",
+
         previewStorageKey: material.asset.storageKey,
+
         previewError: null,
       },
     });
 
     return {
       materialId: material.id,
+
       converted: false,
+
       previewStorageKey: material.asset.storageKey,
     };
   }
@@ -259,7 +421,7 @@ async function generateDocumentPreview(materialId: string) {
      * Nginx cần đọc được PDF qua /protected/.
      */
     await chmod(destination, 0o644);
-
+    const pages = await renderPdfPages(destination, material.id);
     await prisma.material.update({
       where: {
         id: material.id,
@@ -276,6 +438,7 @@ async function generateDocumentPreview(materialId: string) {
       converted: true,
       previewStorageKey,
       sizeBytes: generatedPdfStat.size,
+      pageCount: pages.pageCount,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

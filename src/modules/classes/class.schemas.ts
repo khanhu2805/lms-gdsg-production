@@ -2,7 +2,6 @@ import { z } from "zod";
 
 export const createClassSchema = z
   .object({
-    code: z.string().trim().min(2).max(50).toUpperCase(),
     name: z.string().trim().min(2).max(200),
     subjectId: z.uuid(),
     academicYear: z.string().trim().min(4).max(20),

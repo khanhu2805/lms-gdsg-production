@@ -6,6 +6,7 @@ import { prisma } from "@/lib/database/client";
 import { AppError } from "@/lib/errors/app-error";
 import type { RequestContext } from "@/lib/security/request-context";
 import { writeAuditLog } from "@/modules/audit/audit.service";
+import { generateProfileCode } from "@/lib/codes/automatic-code";
 
 import type { createUserSchema, userMutationSchema } from "./user.schemas";
 import type { z } from "zod";
@@ -111,6 +112,19 @@ export async function createManagedUser(
     if (existing) {
       throw new AppError("CONFLICT", "Email này đã có trong hệ thống.");
     }
+    const profileInput = {
+      ...(input.profile ?? {}),
+    };
+
+    Reflect.deleteProperty(profileInput, "studentCode");
+
+    Reflect.deleteProperty(profileInput, "teacherCode");
+
+    Reflect.deleteProperty(profileInput, "assistantCode");
+
+    Reflect.deleteProperty(profileInput, "parentCode");
+
+    const generatedCode = await generateProfileCode(tx, input.role);
 
     const user = await tx.user.create({
       data: {
@@ -119,11 +133,12 @@ export async function createManagedUser(
         name: input.name,
         role: input.role,
         status: "ACTIVE",
-        profile: input.profile
-          ? {
-              create: input.profile,
-            }
-          : undefined,
+        profile: {
+          create: {
+            ...profileInput,
+            ...generatedCode,
+          },
+        },
       },
       select: {
         id: true,

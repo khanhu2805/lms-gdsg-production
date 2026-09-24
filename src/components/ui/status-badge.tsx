@@ -1,13 +1,15 @@
-import type {
-  AttendanceStatus,
-  ClassStatus,
-  ContentPublicationStatus,
-  JobStatus,
-  UserStatus,
+import {
+  type AttendanceStatus,
+  type ClassStatus,
+  type ClassSessionStatus,
+  type ContentPublicationStatus,
+  type JobStatus,
+  type UserStatus,
 } from "@/generated/prisma/enums";
 import {
   ATTENDANCE_STATUS_LABELS,
   CLASS_STATUS_LABELS,
+  CLASS_SESSION_STATUS_LABELS,
   CONTENT_STATUS_LABELS,
   JOB_STATUS_LABELS,
   USER_STATUS_LABELS,
@@ -17,6 +19,7 @@ import { cn } from "@/lib/utils";
 type SupportedStatus =
   | AttendanceStatus
   | ClassStatus
+  | ClassSessionStatus
   | ContentPublicationStatus
   | JobStatus
   | UserStatus;
@@ -24,6 +27,7 @@ type SupportedStatus =
 const labels: Partial<Record<SupportedStatus, string>> = {
   ...USER_STATUS_LABELS,
   ...CLASS_STATUS_LABELS,
+  ...CLASS_SESSION_STATUS_LABELS,
   ...CONTENT_STATUS_LABELS,
   ...ATTENDANCE_STATUS_LABELS,
   ...JOB_STATUS_LABELS,
@@ -31,6 +35,9 @@ const labels: Partial<Record<SupportedStatus, string>> = {
 
 const styles: Partial<Record<SupportedStatus, string>> = {
   ACTIVE: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
+  ONGOING: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
+  CANCELLED: "bg-red-50 text-red-700 ring-red-600/20",
+  SCHEDULED: "bg-blue-50 text-blue-700 ring-blue-600/20",
   COMPLETED: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
   PUBLISHED: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
   PRESENT: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",

@@ -8,6 +8,7 @@ import { AppError } from "@/lib/errors/app-error";
 import type { RequestContext } from "@/lib/security/request-context";
 import { writeAuditLog } from "@/modules/audit/audit.service";
 import { purgeClassSession } from "@/modules/sessions/session.service";
+import { generateClassCode } from "@/lib/codes/automatic-code";
 
 import { calculateCapacity, canAddStudent } from "./capacity";
 import type {
@@ -69,16 +70,23 @@ export async function createCourseClass(
 
   return prisma.$transaction(async (tx) => {
     const subject = await tx.subject.findFirst({
-      where: { id: input.subjectId, isActive: true },
-      select: { id: true },
+      where: {
+        id: input.subjectId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        code: true,
+      },
     });
     if (!subject) {
       throw new AppError("VALIDATION_ERROR", "Môn học không hợp lệ.");
     }
-
+    const code = await generateClassCode(tx, subject.code, input.academicYear);
     const courseClass = await tx.courseClass.create({
       data: {
         ...input,
+        code,
         createdById: actor.id,
       },
     });

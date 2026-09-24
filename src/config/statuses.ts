@@ -1,6 +1,7 @@
 import type {
   AttendanceStatus,
   ClassStatus,
+  ClassSessionStatus,
   ContentPublicationStatus,
   JobStatus,
   UserStatus,
@@ -17,6 +18,13 @@ export const CLASS_STATUS_LABELS: Record<ClassStatus, string> = {
   ACTIVE: "Đang hoạt động",
   COMPLETED: "Đã hoàn thành",
   ARCHIVED: "Đã lưu trữ",
+};
+
+export const CLASS_SESSION_STATUS_LABELS: Record<ClassSessionStatus, string> = {
+  SCHEDULED: "Đã lên lịch",
+  ONGOING: "Đang diễn ra",
+  COMPLETED: "Đã hoàn thành",
+  CANCELLED: "Đã hủy",
 };
 
 export const CONTENT_STATUS_LABELS: Record<ContentPublicationStatus, string> = {

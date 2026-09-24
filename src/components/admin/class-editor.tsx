@@ -171,7 +171,7 @@ export function ClassEditor({
             reason: String(formData.get("reason") ?? ""),
             confirmOverCapacity: formData.get("confirmOverCapacity") === "on",
           }
-          : { code: String(formData.get("code") ?? "") }),
+          : {}),
         name: String(formData.get("name") ?? ""),
         subjectId: String(formData.get("subjectId") ?? ""),
         academicYear: String(formData.get("academicYear") ?? ""),
@@ -362,14 +362,13 @@ export function ClassEditor({
   const classForm = (
     <form onSubmit={submitClass} className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Mã lớp" required>
+        <Field label="Mã lớp">
           <input
-            name="code"
-            defaultValue={courseClass?.code ?? ""}
-            required
-            minLength={2}
-            maxLength={50}
-            disabled={Boolean(courseClass)}
+            value={
+              courseClass?.code ??
+              "Tự động tạo sau khi lưu"
+            }
+            disabled
             className={INPUT_CLASS}
           />
         </Field>
