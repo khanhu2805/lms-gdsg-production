@@ -66,23 +66,35 @@ const OFFICE_PREVIEW_MIME_TYPES = new Set([
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 ]);
 
+const PDF_MIME_TYPE = "application/pdf";
+
 function materialPreviewPlan(mimeType: string, storageKey: string) {
-  if (OFFICE_PREVIEW_MIME_TYPES.has(mimeType)) {
+  const needsProcessing =
+    mimeType === PDF_MIME_TYPE || OFFICE_PREVIEW_MIME_TYPES.has(mimeType);
+
+  if (needsProcessing) {
     return {
       previewStatus: "PENDING" as const,
+
       previewStorageKey: null,
+
       previewError: null,
+
       needsConversion: true,
     };
   }
 
   return {
     previewStatus: "READY" as const,
+
     previewStorageKey: storageKey,
+
     previewError: null,
+
     needsConversion: false,
   };
 }
+
 function assertQuestionScore(
   questions: Array<{ score: number }>,
   maxScore: number,
@@ -315,6 +327,11 @@ export async function purgeContent(
     AND "type"::text =
         'GENERATE_DOCUMENT_PREVIEW'
 `;
+        cleanupTargets.push({
+          storageKey: `documents/previews/pages/${content.material.id}`,
+
+          recursive: true,
+        });
 
         if (
           content.material.previewStorageKey &&
@@ -1204,22 +1221,57 @@ async function cloneContentVersion(
   }
 
   if (source.material) {
-    await tx.material.create({
-      data: {
-        contentId: next.id,
-        assetId: source.material.assetId,
-        title: source.material.title,
-        description: source.material.description,
-        mimeType: source.material.mimeType,
-        sizeBytes: source.material.sizeBytes,
-
-        previewStatus: source.material.previewStatus,
-
-        previewStorageKey: source.material.previewStorageKey,
-
-        previewError: source.material.previewError,
+    const asset = await tx.asset.findUnique({
+      where: {
+        id: source.material.assetId,
+      },
+      select: {
+        storageKey: true,
       },
     });
+
+    if (!asset) {
+      throw new AppError("CONFLICT", "File tài liệu nguồn không còn tồn tại.");
+    }
+
+    const preview = materialPreviewPlan(
+      source.material.mimeType,
+      asset.storageKey,
+    );
+
+    const material = await tx.material.create({
+      data: {
+        contentId: next.id,
+
+        assetId: source.material.assetId,
+
+        title: source.material.title,
+
+        description: source.material.description,
+
+        mimeType: source.material.mimeType,
+
+        sizeBytes: source.material.sizeBytes,
+
+        previewStatus: preview.previewStatus,
+
+        previewStorageKey: preview.previewStorageKey,
+
+        previewError: preview.previewError,
+      },
+    });
+
+    if (preview.needsConversion) {
+      await tx.job.create({
+        data: {
+          type: "GENERATE_DOCUMENT_PREVIEW",
+
+          payload: {
+            materialId: material.id,
+          },
+        },
+      });
+    }
   }
 
   if (source.recording) {

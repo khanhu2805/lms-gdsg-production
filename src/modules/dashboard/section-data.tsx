@@ -287,7 +287,8 @@ export async function loadSectionData(
           session.mode === "ONLINE"
             ? "Trực tuyến"
             : (session.room ?? "Tại lớp"),
-          pill(session.attendanceOpen ? "Đang điểm danh" : session.status),
+          <StatusBadge key="status" status={session.status} />,
+            // pill(session.attendanceOpen ? "Đang điểm danh" : session.status),
           rowActions(`/dashboard/sessions/${session.id}`, {
             canEdit: actor.role === "ADMIN" || actor.role === "MANAGER",
           }),
