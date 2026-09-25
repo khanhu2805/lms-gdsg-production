@@ -65,6 +65,7 @@ export async function getStudentAssignment(actor: Actor, assignmentId: string) {
           content: true,
           order: true,
           score: true,
+          explanation: true,
           required: true,
           choices: {
             orderBy: { order: "asc" },
