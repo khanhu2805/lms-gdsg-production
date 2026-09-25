@@ -286,12 +286,13 @@ export async function saveAssignmentSubmission(
       }
 
       let autoScore = 0;
-      let requiresManualGrading = false;
+      const requiresManualGrading = assignment.questions.some(
+        (question) => !isObjectiveQuestion(question.type),
+      );
       for (const answer of input.answers) {
         const question = questionById.get(answer.questionId)!;
         const questionAutoScore = calculateObjectiveScore(question, answer);
-        if (questionAutoScore === null) requiresManualGrading = true;
-        else autoScore += questionAutoScore;
+        if (questionAutoScore !== null) autoScore += questionAutoScore;
 
         await tx.submissionAnswer.upsert({
           where: {
