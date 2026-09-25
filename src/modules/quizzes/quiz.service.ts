@@ -30,6 +30,14 @@ function deterministicRank(seed: string, value: string) {
     .readUInt32BE(0);
 }
 
+function isObjectiveQuestion(type: string) {
+  return [
+    "SINGLE_CHOICE",
+    "MULTIPLE_CHOICE",
+    "TRUE_FALSE",
+  ].includes(type);
+}
+
 async function getAccessibleQuiz(actor: Actor, quizId: string) {
   if (actor.role !== "STUDENT") throw new AppError("FORBIDDEN");
   const quiz = await prisma.quiz.findFirst({
@@ -209,6 +217,13 @@ export async function getQuizAttemptForStudent(
       questionId: answer.questionId,
       answerText: answer.answerText,
       selectedChoiceIds: answer.selectedChoiceIds,
+      ...(canSeeResult
+        ? {
+            autoScore: answer.autoScore,
+            manualScore: answer.manualScore,
+            feedback: answer.feedback,
+          }
+        : {}),
     })),
   };
 }
@@ -308,7 +323,7 @@ export async function submitQuizAttempt(
       const missingRequired = attempt.quiz.questions.some((question) => {
         if (!question.required) return false;
         const answer = answerByQuestion.get(question.id);
-        if (["SINGLE_CHOICE", "TRUE_FALSE"].includes(question.type)) {
+        if (isObjectiveQuestion(question.type)) {
           return !(
             Array.isArray(answer?.selectedChoiceIds) &&
             answer.selectedChoiceIds.length > 0
@@ -327,7 +342,7 @@ export async function submitQuizAttempt(
 
       for (const question of attempt.quiz.questions) {
         const answer = answerByQuestion.get(question.id);
-        if (!["SINGLE_CHOICE", "TRUE_FALSE"].includes(question.type)) {
+        if (!isObjectiveQuestion(question.type)) {
           requiresManualGrading = true;
           continue;
         }
@@ -396,10 +411,25 @@ export async function gradeQuizAttempt(
   const attempt = await prisma.quizAttempt.findUnique({
     where: { id: attemptId },
     include: {
+      answers: {
+        select: {
+          id: true,
+          questionId: true,
+          autoScore: true,
+          manualScore: true,
+        },
+      },
       quiz: {
         select: {
           maxScore: true,
           content: { select: { classId: true } },
+          questions: {
+            select: {
+              id: true,
+              type: true,
+              score: true,
+            },
+          },
         },
       },
     },
@@ -423,39 +453,172 @@ export async function gradeQuizAttempt(
   if (input.action !== "SUGGEST" && !canPublishOfficialGrade(actor.role)) {
     throw new AppError("FORBIDDEN");
   }
-  if ("score" in input && input.score > attempt.quiz.maxScore.toNumber()) {
+
+  if (input.action === "SUGGEST") {
+    if (input.score > attempt.quiz.maxScore.toNumber()) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "Điểm đề xuất vượt quá điểm tối đa của bài kiểm tra.",
+      );
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.quizAttempt.update({
+        where: { id: attemptId },
+        data: { assistantSuggestedScore: input.score },
+        select: {
+          id: true,
+          status: true,
+          finalScore: true,
+          assistantSuggestedScore: true,
+          publishedAt: true,
+        },
+      });
+      await writeAuditLog(tx, {
+        actorId: actor.id,
+        actorRole: actor.role,
+        action: "QUIZ_ATTEMPT_SUGGEST",
+        entityType: "QuizAttempt",
+        entityId: attemptId,
+        oldValue: attempt,
+        newValue: updated,
+        reason: input.reason,
+        context,
+      });
+      return updated;
+    });
+  }
+
+  if (input.action === "PUBLISH") {
+    if (attempt.finalScore === null) {
+      throw new AppError(
+        "CONFLICT",
+        "Lượt làm phải được chấm hoàn tất trước khi công bố.",
+      );
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const now = new Date();
+      const updated = await tx.quizAttempt.update({
+        where: { id: attemptId },
+        data: {
+          publishedById: actor.id,
+          publishedAt: now,
+          status: "GRADED",
+        },
+        select: {
+          id: true,
+          status: true,
+          finalScore: true,
+          assistantSuggestedScore: true,
+          publishedAt: true,
+        },
+      });
+      await writeAuditLog(tx, {
+        actorId: actor.id,
+        actorRole: actor.role,
+        action: "QUIZ_ATTEMPT_PUBLISH",
+        entityType: "QuizAttempt",
+        entityId: attemptId,
+        oldValue: attempt,
+        newValue: updated,
+        reason: input.reason,
+        context,
+      });
+      return updated;
+    });
+  }
+
+  const manualQuestions = attempt.quiz.questions.filter(
+    (question) => !isObjectiveQuestion(question.type),
+  );
+  const questionById = new Map(
+    manualQuestions.map((question) => [question.id, question]),
+  );
+  const gradeByQuestion = new Map(
+    input.answers.map((answer) => [answer.questionId, answer]),
+  );
+
+  if (gradeByQuestion.size !== input.answers.length) {
     throw new AppError(
       "VALIDATION_ERROR",
-      "Điểm vượt quá điểm tối đa của bài kiểm tra.",
+      "Một câu hỏi đang được chấm nhiều lần.",
     );
   }
-  if (input.action === "PUBLISH" && attempt.finalScore === null) {
+
+  for (const question of manualQuestions) {
+    if (!gradeByQuestion.has(question.id)) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "Vui lòng chấm đầy đủ tất cả câu tự luận.",
+      );
+    }
+  }
+
+  for (const answerGrade of input.answers) {
+    const question = questionById.get(answerGrade.questionId);
+    if (!question) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "Câu hỏi không hợp lệ hoặc đã được chấm tự động.",
+      );
+    }
+    if (answerGrade.score > question.score.toNumber()) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "Điểm một câu hỏi vượt quá điểm tối đa của câu.",
+      );
+    }
+  }
+
+  const manualScore = input.answers.reduce(
+    (total, answerGrade) => total + answerGrade.score,
+    0,
+  );
+  const autoScore = attempt.autoScore?.toNumber() ?? 0;
+  const finalScore = autoScore + manualScore;
+
+  if (finalScore > attempt.quiz.maxScore.toNumber()) {
     throw new AppError(
-      "CONFLICT",
-      "Lượt làm phải có điểm cuối trước khi công bố.",
+      "VALIDATION_ERROR",
+      "Tổng điểm vượt quá điểm tối đa của bài kiểm tra.",
     );
   }
 
   return prisma.$transaction(async (tx) => {
     const now = new Date();
+
+    for (const answerGrade of input.answers) {
+      await tx.quizAnswer.upsert({
+        where: {
+          attemptId_questionId: {
+            attemptId,
+            questionId: answerGrade.questionId,
+          },
+        },
+        create: {
+          attemptId,
+          questionId: answerGrade.questionId,
+          selectedChoiceIds: [],
+          manualScore: answerGrade.score,
+          feedback: answerGrade.feedback,
+        },
+        update: {
+          manualScore: answerGrade.score,
+          feedback: answerGrade.feedback,
+        },
+      });
+    }
+
     const updated = await tx.quizAttempt.update({
       where: { id: attemptId },
-      data:
-        input.action === "SUGGEST"
-          ? { assistantSuggestedScore: input.score }
-          : input.action === "GRADE"
-            ? {
-                manualScore: input.score,
-                finalScore: input.score,
-                gradedById: actor.id,
-                gradedAt: now,
-                status: "GRADED",
-              }
-            : {
-                publishedById: actor.id,
-                publishedAt: now,
-                status: "GRADED",
-              },
+      data: {
+        manualScore,
+        finalScore,
+        gradedById: actor.id,
+        gradedAt: now,
+        status: "GRADED",
+      },
       select: {
         id: true,
         status: true,
@@ -464,10 +627,11 @@ export async function gradeQuizAttempt(
         publishedAt: true,
       },
     });
+
     await writeAuditLog(tx, {
       actorId: actor.id,
       actorRole: actor.role,
-      action: `QUIZ_ATTEMPT_${input.action}`,
+      action: "QUIZ_ATTEMPT_GRADE",
       entityType: "QuizAttempt",
       entityId: attemptId,
       oldValue: attempt,
@@ -475,6 +639,7 @@ export async function gradeQuizAttempt(
       reason: input.reason,
       context,
     });
+
     return updated;
   });
 }
