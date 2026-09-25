@@ -6,6 +6,9 @@ type Answer = {
   questionId: string;
   answerText?: string | null;
   selectedChoiceIds?: string[];
+  autoScore?: string | number | null;
+  manualScore?: string | number | null;
+  feedback?: string | null;
 };
 
 type Question = {
@@ -15,6 +18,7 @@ type Question = {
   order: number;
   score: number;
   required: boolean;
+  explanation?: string | null;
   choices: Array<{
     id: string;
     content: string;
@@ -59,6 +63,15 @@ type Assignment = {
 type Envelope<T> =
   | { success: true; data: T }
   | { success: false; error: { message: string } };
+
+function isObjectiveQuestion(type: string) {
+  return ["SINGLE_CHOICE", "MULTIPLE_CHOICE", "TRUE_FALSE"].includes(type);
+}
+
+function scoreForAnswer(answer?: Answer) {
+  if (!answer) return 0;
+  return Number(answer.manualScore ?? answer.autoScore ?? 0);
+}
 
 async function api<T>(url: string, init?: RequestInit) {
   const response = await fetch(url, {
@@ -304,7 +317,7 @@ export function StudentAssignmentPlayer({
               </span>
             </div>
 
-            {["SINGLE_CHOICE", "TRUE_FALSE"].includes(question.type) ? (
+            {isObjectiveQuestion(question.type) ? (
               <div className="mt-4 space-y-2">
                 {question.choices.map((choice) => (
                   <label
@@ -313,18 +326,32 @@ export function StudentAssignmentPlayer({
                   >
                     <input
                       disabled={!editable}
-                      type="radio"
+                      type={
+                        question.type === "MULTIPLE_CHOICE"
+                          ? "checkbox"
+                          : "radio"
+                      }
                       name={question.id}
-                      checked={answer.selectedChoiceIds?.[0] === choice.id}
-                      onChange={() =>
-                        setAnswers((current) => ({
-                          ...current,
+                      checked={
+                        answer.selectedChoiceIds?.includes(choice.id) ?? false
+                      }
+                      onChange={(event) => {
+                        const current = answer.selectedChoiceIds ?? [];
+                        const selectedChoiceIds =
+                          question.type === "MULTIPLE_CHOICE"
+                            ? event.target.checked
+                              ? [...new Set([...current, choice.id])]
+                              : current.filter((id) => id !== choice.id)
+                            : [choice.id];
+
+                        setAnswers((currentAnswers) => ({
+                          ...currentAnswers,
                           [question.id]: {
                             questionId: question.id,
-                            selectedChoiceIds: [choice.id],
+                            selectedChoiceIds,
                           },
-                        }))
-                      }
+                        }));
+                      }}
                     />
                     <span className="text-sm text-[#344054]">
                       {choice.content}
@@ -366,6 +393,24 @@ export function StudentAssignmentPlayer({
                 className="mt-4 w-full rounded-xl border border-[#D0D5DD] px-3.5 py-3 text-sm outline-none focus:border-[#4059A5] focus:ring-2 focus:ring-[#4059A5]/20"
               />
             )}
+
+            {latest?.publishedAt ? (
+              <div className="mt-4 rounded-xl bg-[#F7F9FF] p-4 text-sm">
+                <p className="font-semibold text-[#243467]">
+                  Điểm câu: {scoreForAnswer(answer)} / {question.score}
+                </p>
+                {answer.feedback ? (
+                  <p className="mt-2 text-[#475467]">
+                    Nhận xét: {answer.feedback}
+                  </p>
+                ) : null}
+                {question.explanation ? (
+                  <p className="mt-2 text-[#667085]">
+                    Giải thích: {question.explanation}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
           </article>
         );
       })}
