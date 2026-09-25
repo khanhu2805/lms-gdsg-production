@@ -210,10 +210,43 @@ export async function saveAssignmentSubmission(
     assignment.questions.map((question) => [question.id, question]),
   );
   for (const answer of input.answers) {
-    if (!questionById.has(answer.questionId)) {
+    const question = questionById.get(answer.questionId);
+    if (!question) {
       throw new AppError(
         "VALIDATION_ERROR",
         "Câu trả lời không thuộc bài tập.",
+      );
+    }
+
+    const selectedChoiceIds = [...new Set(answer.selectedChoiceIds ?? [])];
+    if (selectedChoiceIds.length !== (answer.selectedChoiceIds ?? []).length) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "Đáp án lựa chọn không được chứa giá trị trùng.",
+      );
+    }
+
+    if (isObjectiveQuestion(question.type)) {
+      const validChoiceIds = new Set(question.choices.map((choice) => choice.id));
+      if (selectedChoiceIds.some((choiceId) => !validChoiceIds.has(choiceId))) {
+        throw new AppError(
+          "VALIDATION_ERROR",
+          "Đáp án được chọn không thuộc câu hỏi.",
+        );
+      }
+      if (
+        question.type !== "MULTIPLE_CHOICE" &&
+        selectedChoiceIds.length > 1
+      ) {
+        throw new AppError(
+          "VALIDATION_ERROR",
+          "Câu hỏi này chỉ được chọn một đáp án.",
+        );
+      }
+    } else if (selectedChoiceIds.length > 0) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "Câu tự luận hoặc tải file không nhận đáp án lựa chọn.",
       );
     }
   }
