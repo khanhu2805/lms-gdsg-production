@@ -14,7 +14,7 @@ export function BrandLogo({
   return (
     <div
       className={cn(
-        "flex flex-col items-center",
+        "flex flex-col items-center justify-center",
         compact ? "gap-0" : "gap-1.5",
         className,
       )}
@@ -22,19 +22,19 @@ export function BrandLogo({
       <Image
         src="/brand/logo.svg"
         alt="Luyện thi Giáo dục Sài Gòn"
-        width={compact ? 44 : 180}
-        height={compact ? 44 : 54}
+        width={64}
+        height={64}
         priority
         className={cn(
-          "h-auto object-contain",
-          compact ? "w-11" : "w-[180px]",
+          "shrink-0 object-contain",
+          compact ? "size-10" : "size-14",
         )}
       />
 
       {!compact ? (
         <span
           className={cn(
-            "whitespace-nowrap text-center text-[11px] font-semibold tracking-[0.02em]",
+            "whitespace-nowrap text-center text-[11px] font-semibold leading-4 tracking-[0.01em]",
             textClassName,
           )}
         >

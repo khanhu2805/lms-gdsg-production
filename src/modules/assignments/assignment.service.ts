@@ -20,6 +20,14 @@ import type { z } from "zod";
 type SaveSubmissionInput = z.infer<typeof saveSubmissionSchema>;
 type GradeSubmissionInput = z.infer<typeof gradeSubmissionSchema>;
 
+function isObjectiveQuestion(type: string) {
+  return [
+    "SINGLE_CHOICE",
+    "MULTIPLE_CHOICE",
+    "TRUE_FALSE",
+  ].includes(type);
+}
+
 export async function getStudentAssignment(actor: Actor, assignmentId: string) {
   if (actor.role !== "STUDENT") throw new AppError("FORBIDDEN");
   const assignment = await prisma.assignment.findFirst({
@@ -57,6 +65,7 @@ export async function getStudentAssignment(actor: Actor, assignmentId: string) {
           content: true,
           order: true,
           score: true,
+          explanation: true,
           required: true,
           choices: {
             orderBy: { order: "asc" },
@@ -86,6 +95,9 @@ export async function getStudentAssignment(actor: Actor, assignmentId: string) {
               questionId: true,
               answerText: true,
               selectedChoiceIds: true,
+              autoScore: true,
+              manualScore: true,
+              feedback: true,
             },
           },
           files: {
@@ -118,6 +130,18 @@ export async function getStudentAssignment(actor: Actor, assignmentId: string) {
       teacherFeedback: submission.publishedAt
         ? submission.teacherFeedback
         : null,
+      answers: submission.answers.map((answer) => ({
+        questionId: answer.questionId,
+        answerText: answer.answerText,
+        selectedChoiceIds: answer.selectedChoiceIds,
+        ...(submission.publishedAt
+          ? {
+              autoScore: answer.autoScore,
+              manualScore: answer.manualScore,
+              feedback: answer.feedback,
+            }
+          : {}),
+      })),
     })),
   };
 }
@@ -130,7 +154,7 @@ function calculateObjectiveScore(
   },
   answer: { selectedChoiceIds?: string[] },
 ) {
-  if (!["SINGLE_CHOICE", "TRUE_FALSE"].includes(question.type)) {
+  if (!isObjectiveQuestion(question.type)) {
     return null;
   }
   const selected = new Set(answer.selectedChoiceIds ?? []);
@@ -186,10 +210,43 @@ export async function saveAssignmentSubmission(
     assignment.questions.map((question) => [question.id, question]),
   );
   for (const answer of input.answers) {
-    if (!questionById.has(answer.questionId)) {
+    const question = questionById.get(answer.questionId);
+    if (!question) {
       throw new AppError(
         "VALIDATION_ERROR",
         "Câu trả lời không thuộc bài tập.",
+      );
+    }
+
+    const selectedChoiceIds = [...new Set(answer.selectedChoiceIds ?? [])];
+    if (selectedChoiceIds.length !== (answer.selectedChoiceIds ?? []).length) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "Đáp án lựa chọn không được chứa giá trị trùng.",
+      );
+    }
+
+    if (isObjectiveQuestion(question.type)) {
+      const validChoiceIds = new Set(question.choices.map((choice) => choice.id));
+      if (selectedChoiceIds.some((choiceId) => !validChoiceIds.has(choiceId))) {
+        throw new AppError(
+          "VALIDATION_ERROR",
+          "Đáp án được chọn không thuộc câu hỏi.",
+        );
+      }
+      if (
+        question.type !== "MULTIPLE_CHOICE" &&
+        selectedChoiceIds.length > 1
+      ) {
+        throw new AppError(
+          "VALIDATION_ERROR",
+          "Câu hỏi này chỉ được chọn một đáp án.",
+        );
+      }
+    } else if (selectedChoiceIds.length > 0) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "Câu tự luận hoặc tải file không nhận đáp án lựa chọn.",
       );
     }
   }
@@ -221,7 +278,7 @@ export async function saveAssignmentSubmission(
       if (!question.required) return false;
       const answer = answerByQuestion.get(question.id);
       if (question.type === "FILE_UPLOAD") return uniqueFileIds.length === 0;
-      if (["SINGLE_CHOICE", "TRUE_FALSE"].includes(question.type)) {
+      if (isObjectiveQuestion(question.type)) {
         return !answer?.selectedChoiceIds?.length;
       }
       return !answer?.answerText?.trim();
@@ -262,12 +319,13 @@ export async function saveAssignmentSubmission(
       }
 
       let autoScore = 0;
-      let requiresManualGrading = false;
+      const requiresManualGrading = assignment.questions.some(
+        (question) => !isObjectiveQuestion(question.type),
+      );
       for (const answer of input.answers) {
         const question = questionById.get(answer.questionId)!;
         const questionAutoScore = calculateObjectiveScore(question, answer);
-        if (questionAutoScore === null) requiresManualGrading = true;
-        else autoScore += questionAutoScore;
+        if (questionAutoScore !== null) autoScore += questionAutoScore;
 
         await tx.submissionAnswer.upsert({
           where: {
@@ -356,6 +414,13 @@ export async function gradeSubmission(
         select: {
           maxScore: true,
           content: { select: { classId: true } },
+          questions: {
+            select: {
+              id: true,
+              type: true,
+              score: true,
+            },
+          },
         },
       },
     },
@@ -363,21 +428,32 @@ export async function gradeSubmission(
   if (!submission) throw new AppError("NOT_FOUND");
   await assertStaffClassAccess(actor, submission.assignment.content.classId);
 
+  if (!submission.submittedAt || submission.status === "DRAFT") {
+    throw new AppError(
+      "CONFLICT",
+      "Bài làm chưa được nộp nên chưa thể chấm điểm.",
+    );
+  }
+  if (submission.publishedAt) {
+    throw new AppError("CONFLICT", "Điểm bài làm này đã được công bố.");
+  }
+
   if (input.action === "SUGGEST" && !canSuggestGrade(actor.role)) {
     throw new AppError("FORBIDDEN");
   }
   if (input.action !== "SUGGEST" && !canPublishOfficialGrade(actor.role)) {
     throw new AppError("FORBIDDEN");
   }
-  if (
-    "score" in input &&
-    input.score > submission.assignment.maxScore.toNumber()
-  ) {
-    throw new AppError(
-      "VALIDATION_ERROR",
-      "Điểm vượt quá điểm tối đa của bài tập.",
-    );
+
+  if (input.action === "SUGGEST") {
+    if (input.score > submission.assignment.maxScore.toNumber()) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "Điểm đề xuất vượt quá điểm tối đa của bài tập.",
+      );
+    }
   }
+
   if (input.action === "PUBLISH" && submission.finalScore === null) {
     throw new AppError(
       "CONFLICT",
@@ -385,8 +461,98 @@ export async function gradeSubmission(
     );
   }
 
+  if (input.action === "GRADE") {
+    const manualQuestions = submission.assignment.questions.filter(
+      (question) => !isObjectiveQuestion(question.type),
+    );
+    const questionById = new Map(
+      manualQuestions.map((question) => [question.id, question]),
+    );
+    const gradeByQuestion = new Map(
+      input.answers.map((answer) => [answer.questionId, answer]),
+    );
+
+    if (gradeByQuestion.size !== input.answers.length) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "Một câu hỏi đang được chấm nhiều lần.",
+      );
+    }
+
+    for (const question of manualQuestions) {
+      if (!gradeByQuestion.has(question.id)) {
+        throw new AppError(
+          "VALIDATION_ERROR",
+          "Vui lòng chấm đầy đủ tất cả câu tự luận hoặc câu nộp file.",
+        );
+      }
+    }
+
+    for (const answerGrade of input.answers) {
+      const question = questionById.get(answerGrade.questionId);
+      if (!question) {
+        throw new AppError(
+          "VALIDATION_ERROR",
+          "Câu hỏi không hợp lệ hoặc đã được chấm tự động.",
+        );
+      }
+      if (answerGrade.score > question.score.toNumber()) {
+        throw new AppError(
+          "VALIDATION_ERROR",
+          "Điểm một câu hỏi vượt quá điểm tối đa của câu.",
+        );
+      }
+    }
+  }
+
   return prisma.$transaction(async (tx) => {
     const now = new Date();
+
+    if (input.action === "GRADE") {
+      for (const answerGrade of input.answers) {
+        await tx.submissionAnswer.upsert({
+          where: {
+            submissionId_questionId: {
+              submissionId,
+              questionId: answerGrade.questionId,
+            },
+          },
+          create: {
+            submissionId,
+            questionId: answerGrade.questionId,
+            selectedChoiceIds: [],
+            manualScore: answerGrade.score,
+            feedback: answerGrade.feedback,
+          },
+          update: {
+            manualScore: answerGrade.score,
+            feedback: answerGrade.feedback,
+          },
+        });
+      }
+    }
+
+    const manualScore =
+      input.action === "GRADE"
+        ? input.answers.reduce(
+            (total, answerGrade) => total + answerGrade.score,
+            0,
+          )
+        : null;
+    const autoScore = submission.autoScore?.toNumber() ?? 0;
+    const finalScore =
+      manualScore === null ? null : autoScore + manualScore;
+
+    if (
+      finalScore !== null &&
+      finalScore > submission.assignment.maxScore.toNumber()
+    ) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "Tổng điểm vượt quá điểm tối đa của bài tập.",
+      );
+    }
+
     const updated = await tx.submission.update({
       where: { id: submissionId },
       data:
@@ -397,8 +563,8 @@ export async function gradeSubmission(
             }
           : input.action === "GRADE"
             ? {
-                manualScore: input.score,
-                finalScore: input.score,
+                manualScore,
+                finalScore,
                 teacherFeedback: input.feedback,
                 gradedById: actor.id,
                 gradedAt: now,
@@ -418,6 +584,7 @@ export async function gradeSubmission(
                     publishedById: null,
                   },
     });
+
     await writeAuditLog(tx, {
       actorId: actor.id,
       actorRole: actor.role,
@@ -429,6 +596,7 @@ export async function gradeSubmission(
       reason: input.reason,
       context,
     });
+
     return {
       id: updated.id,
       status: updated.status,

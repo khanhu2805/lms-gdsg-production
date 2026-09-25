@@ -167,6 +167,9 @@ export default async function SectionPage({
     page?: string;
     pageSize?: string;
     studentId?: string;
+    classId?: string;
+    kind?: string;
+    status?: string;
   }>;
 }) {
   const actor = await requireActor();
@@ -186,11 +189,25 @@ export default async function SectionPage({
       ? await resolveParentContext(actor, query.studentId)
       : null;
   const selectedStudentId = parentContext?.selectedStudentId ?? undefined;
+  const gradingClassId =
+    section === "grading" ? query.classId?.trim() || undefined : undefined;
+  const gradingKind =
+    section === "grading" && ["ASSIGNMENT", "QUIZ"].includes(query.kind ?? "")
+      ? (query.kind as "ASSIGNMENT" | "QUIZ")
+      : undefined;
+  const gradingStatus =
+    section === "grading" &&
+    ["PENDING", "GRADED", "PUBLISHED"].includes(query.status ?? "")
+      ? (query.status as "PENDING" | "GRADED" | "PUBLISHED")
+      : undefined;
 
   const data = await loadSectionData(actor, section, search, {
     page,
     pageSize,
     studentId: selectedStudentId,
+    gradingClassId,
+    gradingKind,
+    gradingStatus,
   });
   const hasNext = data.rows.length > pageSize;
   const visibleRows = data.rows.slice(0, pageSize);
@@ -299,28 +316,72 @@ export default async function SectionPage({
       <section className="mt-7">
         <form
           method="get"
-          className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center"
+          className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center"
         >
-          <label className="relative w-full max-w-lg">
+          <label className="relative w-full xl:max-w-md">
             <span className="sr-only">Tìm kiếm trong danh sách</span>
             <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-[#98A2B3]" />
             <input
               type="search"
               name="q"
               defaultValue={search}
-              placeholder={`Tìm trong ${copy.title.toLowerCase()}…`}
+              placeholder={
+                section === "grading"
+                  ? "Tìm học sinh, bài hoặc mã lớp…"
+                  : `Tìm trong ${copy.title.toLowerCase()}…`
+              }
               className="h-11 w-full rounded-xl border border-[#D0D5DD] bg-white pr-4 pl-10 text-sm"
             />
           </label>
+
+          {section === "grading" ? (
+            <>
+              <select
+                name="classId"
+                defaultValue={gradingClassId ?? ""}
+                className="h-11 rounded-xl border border-[#D0D5DD] bg-white px-3 text-sm text-[#344054]"
+              >
+                <option value="">Tất cả lớp</option>
+                {(data.filters?.classes ?? []).map((courseClass) => (
+                  <option key={courseClass.id} value={courseClass.id}>
+                    {courseClass.label}
+                  </option>
+                ))}
+              </select>
+
+              <select
+                name="kind"
+                defaultValue={gradingKind ?? ""}
+                className="h-11 rounded-xl border border-[#D0D5DD] bg-white px-3 text-sm text-[#344054]"
+              >
+                <option value="">Tất cả loại</option>
+                <option value="ASSIGNMENT">Bài tập</option>
+                <option value="QUIZ">Bài kiểm tra</option>
+              </select>
+
+              <select
+                name="status"
+                defaultValue={gradingStatus ?? ""}
+                className="h-11 rounded-xl border border-[#D0D5DD] bg-white px-3 text-sm text-[#344054]"
+              >
+                <option value="">Tất cả trạng thái</option>
+                <option value="PENDING">Chờ chấm</option>
+                <option value="GRADED">Đã chấm, chưa công bố</option>
+                <option value="PUBLISHED">Đã công bố</option>
+              </select>
+            </>
+          ) : null}
+
           {selectedStudentId ? (
             <input type="hidden" name="studentId" value={selectedStudentId} />
           ) : null}
           <input type="hidden" name="pageSize" value={pageSize} />
+
           <button
             type="submit"
             className="inline-flex min-h-11 items-center justify-center rounded-xl border border-[#D0D5DD] bg-white px-4 text-sm font-semibold text-[#344054] hover:bg-[#F9FAFB]"
           >
-            Tìm kiếm
+            {section === "grading" ? "Lọc" : "Tìm kiếm"}
           </button>
         </form>
         <DataTable columns={tableColumns} rows={tableRows} />
@@ -330,7 +391,13 @@ export default async function SectionPage({
             page={page}
             pageSize={pageSize}
             hasNext={hasNext}
-            params={{ q: search, studentId: selectedStudentId }}
+            params={{
+              q: search,
+              studentId: selectedStudentId,
+              classId: gradingClassId,
+              kind: gradingKind,
+              status: gradingStatus,
+            }}
           />
         ) : null}
       </section>

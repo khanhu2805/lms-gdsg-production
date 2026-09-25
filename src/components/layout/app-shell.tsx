@@ -54,7 +54,7 @@ export function AppShell({
     <div className="flex h-full flex-col">
       <div
         className={cn(
-          "flex h-24 shrink-0 items-center justify-center border-b border-white/10 px-5",
+          "flex h-[108px] shrink-0 items-center justify-center border-b border-white/10 px-4",
           collapsed && "h-20 px-2",
         )}
       >

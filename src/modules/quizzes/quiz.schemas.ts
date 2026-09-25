@@ -12,6 +12,12 @@ export const saveQuizAnswersSchema = z.object({
     .max(200),
 });
 
+const answerGradeSchema = z.object({
+  questionId: z.uuid(),
+  score: z.number().min(0),
+  feedback: z.string().trim().max(20_000).optional(),
+});
+
 export const gradeQuizAttemptSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("SUGGEST"),
@@ -20,7 +26,7 @@ export const gradeQuizAttemptSchema = z.discriminatedUnion("action", [
   }),
   z.object({
     action: z.literal("GRADE"),
-    score: z.number().min(0),
+    answers: z.array(answerGradeSchema).max(200),
     reason: z.string().trim().min(3).max(1000),
   }),
   z.object({

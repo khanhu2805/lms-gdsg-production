@@ -34,6 +34,7 @@ const questionSchema = z
   .object({
     type: z.enum([
       "SINGLE_CHOICE",
+      "MULTIPLE_CHOICE",
       "TRUE_FALSE",
       "SHORT_ANSWER",
       "ESSAY",
@@ -47,17 +48,27 @@ const questionSchema = z
     choices: z.array(choiceSchema).max(20).default([]),
   })
   .superRefine((question, context) => {
-    const objective = ["SINGLE_CHOICE", "TRUE_FALSE"].includes(question.type);
+    const objective = [
+      "SINGLE_CHOICE",
+      "MULTIPLE_CHOICE",
+      "TRUE_FALSE",
+    ].includes(question.type);
+
     if (objective && question.choices.length < 2) {
       context.addIssue({
         code: "custom",
         path: ["choices"],
-        message: "Câu hỏi khách quan phải có ít nhất hai lựa chọn.",
+        message: "Câu hỏi trắc nghiệm phải có ít nhất hai lựa chọn.",
       });
     }
+
+    const correctChoiceCount = question.choices.filter(
+      (choice) => choice.isCorrect,
+    ).length;
+
     if (
-      objective &&
-      question.choices.filter((choice) => choice.isCorrect).length !== 1
+      ["SINGLE_CHOICE", "TRUE_FALSE"].includes(question.type) &&
+      correctChoiceCount !== 1
     ) {
       context.addIssue({
         code: "custom",
@@ -65,6 +76,15 @@ const questionSchema = z
         message: "Câu hỏi một lựa chọn phải có đúng một đáp án đúng.",
       });
     }
+
+    if (question.type === "MULTIPLE_CHOICE" && correctChoiceCount < 1) {
+      context.addIssue({
+        code: "custom",
+        path: ["choices"],
+        message: "Câu hỏi nhiều đáp án phải có ít nhất một đáp án đúng.",
+      });
+    }
+
     if (!objective && question.choices.length > 0) {
       context.addIssue({
         code: "custom",
@@ -72,6 +92,7 @@ const questionSchema = z
         message: "Câu tự luận hoặc tải file không được có lựa chọn.",
       });
     }
+
     const orders = question.choices.map((choice) => choice.order);
     if (new Set(orders).size !== orders.length) {
       context.addIssue({
