@@ -215,6 +215,10 @@ type SettingDetail = {
   updatedBy?: { id: string; name: string; email: string } | null;
 };
 
+function isObjectiveQuestion(type: string) {
+  return ["SINGLE_CHOICE", "MULTIPLE_CHOICE", "TRUE_FALSE"].includes(type);
+}
+
 function JsonBlock({ value }: { value: unknown }) {
   return (
     <pre className="max-h-[32rem] overflow-auto rounded-xl bg-[#172033] p-4 text-xs leading-6 text-slate-100">
@@ -357,24 +361,49 @@ function AssignmentGradingEditor({
     submission.answers.map((answer) => [answer.questionId, answer]),
   );
   const assistant = actorRole === "TEACHING_ASSISTANT";
+  const manualQuestions = submission.assignment.questions.filter(
+    (question) => !isObjectiveQuestion(question.type),
+  );
 
   async function grade(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     setBusy(true);
     setNotice(undefined);
+
     try {
+      const payload = assistant
+        ? {
+            action: "SUGGEST" as const,
+            score: Number(formData.get("score")),
+            feedback:
+              String(formData.get("feedback") ?? "").trim() || undefined,
+            reason: String(formData.get("reason") ?? ""),
+          }
+        : {
+            action: "GRADE" as const,
+            answers: manualQuestions.map((question) => ({
+              questionId: question.id,
+              score: Number(formData.get(`score-${question.id}`)),
+              feedback:
+                String(
+                  formData.get(`feedback-${question.id}`) ?? "",
+                ).trim() || undefined,
+            })),
+            feedback:
+              String(formData.get("feedback") ?? "").trim() || undefined,
+            reason: String(formData.get("reason") ?? ""),
+          };
+
       await apiRequest(`/api/v1/submissions/${submission.id}/grade`, {
         method: "PATCH",
-        ...jsonRequest({
-          action: assistant ? "SUGGEST" : "GRADE",
-          score: Number(formData.get("score")),
-          feedback: String(formData.get("feedback") ?? "").trim() || undefined,
-          reason: String(formData.get("reason") ?? ""),
-        }),
+        ...jsonRequest(payload),
       });
+
       setNotice({
-        message: assistant ? "Đã lưu điểm đề xuất." : "Đã chấm bài.",
+        message: assistant
+          ? "Đã lưu điểm đề xuất."
+          : "Đã chấm từng câu và cập nhật tổng điểm.",
         tone: "success",
       });
       router.refresh();
@@ -407,6 +436,7 @@ function AssignmentGradingEditor({
       danger: action === "REQUIRE_RESUBMISSION",
     });
     if (!reason) return;
+
     setBusy(true);
     setNotice(undefined);
     try {
@@ -432,11 +462,15 @@ function AssignmentGradingEditor({
   return (
     <div className="space-y-5">
       <MutationNotice {...notice} />
+
       <SectionCard title="Bài nộp">
         <div className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <p className="text-[#667085]">Học sinh</p>
             <p className="mt-1 font-semibold">{submission.student.name}</p>
+            <p className="mt-1 text-xs text-[#667085]">
+              {submission.student.profile?.studentCode ?? submission.student.email}
+            </p>
           </div>
           <div>
             <p className="text-[#667085]">Lớp</p>
@@ -457,22 +491,37 @@ function AssignmentGradingEditor({
         </div>
       </SectionCard>
 
-      <SectionCard title="Câu trả lời">
+      <SectionCard title="Câu trả lời và chấm điểm">
         <div className="space-y-4">
           {submission.assignment.questions.map((question) => {
             const answer = answerByQuestion.get(question.id);
             const selected = new Set(answer?.selectedChoiceIds ?? []);
+            const objective = isObjectiveQuestion(question.type);
+
             return (
               <article
                 key={question.id}
                 className="rounded-xl border border-[#E4E7EC] p-4"
               >
-                <p className="text-sm font-semibold">
-                  Câu {question.order} ({question.score} điểm) · {question.type}
-                </p>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <p className="text-sm font-semibold">
+                    Câu {question.order} ({question.score} điểm) · {question.type}
+                  </p>
+                  {objective ? (
+                    <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                      Tự chấm
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                      Giáo viên chấm
+                    </span>
+                  )}
+                </div>
+
                 <p className="mt-2 text-sm whitespace-pre-wrap text-[#344054]">
                   {question.content}
                 </p>
+
                 {question.choices.length ? (
                   <div className="mt-3 space-y-2">
                     {question.choices.map((choice) => (
@@ -484,7 +533,7 @@ function AssignmentGradingEditor({
                             : "bg-[#F9FAFB] text-[#475467]"
                         }`}
                       >
-                        {selected.has(choice.id) ? "✓ " : ""}
+                        {selected.has(choice.id) ? "✓ Học sinh chọn · " : ""}
                         {choice.content}
                         {choice.isCorrect ? " · Đáp án đúng" : ""}
                       </p>
@@ -492,19 +541,59 @@ function AssignmentGradingEditor({
                   </div>
                 ) : (
                   <p className="mt-3 rounded-lg bg-[#F9FAFB] p-3 text-sm whitespace-pre-wrap">
-                    {answer?.answerText || "Chưa có câu trả lời."}
+                    {answer?.answerText || "Chưa có câu trả lời bằng văn bản."}
                   </p>
                 )}
-                <p className="mt-3 text-xs text-[#667085]">
-                  Điểm tự động: {answer?.autoScore ?? "—"} · Điểm tay:{" "}
-                  {answer?.manualScore ?? "—"}
-                </p>
+
+                {question.explanation ? (
+                  <p className="mt-3 rounded-lg bg-blue-50/60 p-3 text-xs text-[#475467]">
+                    Hướng dẫn / đáp án: {question.explanation}
+                  </p>
+                ) : null}
+
+                {objective ? (
+                  <p className="mt-3 text-xs font-medium text-[#667085]">
+                    Điểm tự động: {answer?.autoScore ?? 0}/{question.score}
+                  </p>
+                ) : !assistant ? (
+                  <div className="mt-4 grid gap-4 border-t border-[#EAECF0] pt-4 sm:grid-cols-[180px_1fr]">
+                    <Field label={`Điểm câu (tối đa ${question.score})`} required>
+                      <input
+                        form="assignment-grade-form"
+                        type="number"
+                        name={`score-${question.id}`}
+                        min={0}
+                        max={Number(question.score)}
+                        step="0.25"
+                        defaultValue={answer?.manualScore ?? 0}
+                        required
+                        disabled={Boolean(submission.publishedAt)}
+                        className={INPUT_CLASS}
+                      />
+                    </Field>
+                    <Field label="Nhận xét câu">
+                      <textarea
+                        form="assignment-grade-form"
+                        name={`feedback-${question.id}`}
+                        defaultValue={answer?.feedback ?? ""}
+                        disabled={Boolean(submission.publishedAt)}
+                        className={TEXTAREA_CLASS}
+                      />
+                    </Field>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-xs text-[#667085]">
+                    Trợ giảng đề xuất điểm tổng ở phần dưới; giáo viên sẽ chấm
+                    điểm chính thức từng câu.
+                  </p>
+                )}
               </article>
             );
           })}
         </div>
+
         {submission.files.length ? (
-          <div className="mt-5 flex flex-wrap gap-3">
+          <div className="mt-5 flex flex-wrap gap-3 border-t border-[#EAECF0] pt-5">
             {submission.files.map(({ asset }) => (
               <Link
                 key={asset.id}
@@ -519,71 +608,109 @@ function AssignmentGradingEditor({
         ) : null}
       </SectionCard>
 
-      <SectionCard title={assistant ? "Đề xuất điểm" : "Chấm điểm"} id="edit">
-        <form onSubmit={grade} className="space-y-4">
+      <SectionCard
+        title={assistant ? "Đề xuất điểm" : "Tổng hợp chấm điểm"}
+        id="edit"
+      >
+        <form id="assignment-grade-form" onSubmit={grade} className="space-y-4">
+          {!assistant ? (
+            <div className="grid gap-3 rounded-xl bg-[#F7F9FF] p-4 text-sm sm:grid-cols-3">
+              <div>
+                <p className="text-[#667085]">Điểm tự động</p>
+                <p className="mt-1 text-lg font-semibold text-[#172033]">
+                  {submission.autoScore ?? 0}
+                </p>
+              </div>
+              <div>
+                <p className="text-[#667085]">Điểm giáo viên chấm</p>
+                <p className="mt-1 text-lg font-semibold text-[#172033]">
+                  {submission.manualScore ?? "Chưa chấm"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[#667085]">Tổng điểm</p>
+                <p className="mt-1 text-lg font-semibold text-[#243467]">
+                  {submission.finalScore ?? "Chưa hoàn tất"} /{" "}
+                  {submission.assignment.maxScore}
+                </p>
+              </div>
+            </div>
+          ) : null}
+
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              label={`Điểm (tối đa ${submission.assignment.maxScore})`}
-              required
-            >
-              <input
-                type="number"
-                name="score"
-                min={0}
-                max={Number(submission.assignment.maxScore)}
-                step="0.25"
-                defaultValue={
-                  assistant
-                    ? (submission.assistantSuggestedScore ?? "")
-                    : (submission.finalScore ?? submission.autoScore ?? "")
-                }
+            {assistant ? (
+              <Field
+                label={`Điểm đề xuất (tối đa ${submission.assignment.maxScore})`}
                 required
-                className={INPUT_CLASS}
-              />
-            </Field>
-            <Field label="Lý do" required>
+              >
+                <input
+                  type="number"
+                  name="score"
+                  min={0}
+                  max={Number(submission.assignment.maxScore)}
+                  step="0.25"
+                  defaultValue={submission.assistantSuggestedScore ?? ""}
+                  required
+                  className={INPUT_CLASS}
+                />
+              </Field>
+            ) : null}
+
+            <Field label="Lý do chấm / điều chỉnh" required>
               <input
                 name="reason"
                 required
                 minLength={3}
+                disabled={Boolean(submission.publishedAt)}
                 className={INPUT_CLASS}
               />
             </Field>
           </div>
-          <Field label="Nhận xét">
+
+          <Field label={assistant ? "Nhận xét đề xuất" : "Nhận xét chung"}>
             <textarea
               name="feedback"
               defaultValue={
                 assistant
-                  ? (submission.assistantSuggestedFeedback ?? "")
-                  : (submission.teacherFeedback ?? "")
+                  ? submission.assistantSuggestedFeedback ?? ""
+                  : submission.teacherFeedback ?? ""
               }
+              disabled={Boolean(submission.publishedAt)}
               className={TEXTAREA_CLASS}
             />
           </Field>
+
           <div className="flex justify-end">
-            <button disabled={busy} className={PRIMARY_BUTTON}>
+            <button
+              disabled={busy || Boolean(submission.publishedAt)}
+              className={PRIMARY_BUTTON}
+            >
               <BusyLabel
                 busy={busy}
-                idle={assistant ? "Lưu đề xuất" : "Lưu điểm"}
+                idle={assistant ? "Lưu đề xuất" : "Lưu chấm điểm"}
               />
             </button>
           </div>
         </form>
+
         {!assistant ? (
           <div className="mt-5 flex flex-wrap gap-3 border-t border-[#E4E7EC] pt-5">
             <button
               type="button"
-              disabled={busy || submission.finalScore == null}
+              disabled={
+                busy ||
+                submission.finalScore == null ||
+                Boolean(submission.publishedAt)
+              }
               onClick={() => operation("PUBLISH")}
               className={PRIMARY_BUTTON}
             >
               <Send className="mr-2 size-4" />
-              Công bố điểm
+              {submission.publishedAt ? "Đã công bố" : "Công bố điểm"}
             </button>
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || Boolean(submission.publishedAt)}
               onClick={() => operation("RETURN")}
               className={SECONDARY_BUTTON}
             >
@@ -591,7 +718,7 @@ function AssignmentGradingEditor({
             </button>
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || Boolean(submission.publishedAt)}
               onClick={() => operation("REQUIRE_RESUBMISSION")}
               className={DANGER_BUTTON}
             >
@@ -622,23 +749,45 @@ function QuizGradingEditor({
     attempt.answers.map((answer) => [answer.questionId, answer]),
   );
   const assistant = actorRole === "TEACHING_ASSISTANT";
+  const manualQuestions = attempt.quiz.questions.filter(
+    (question) => !isObjectiveQuestion(question.type),
+  );
 
   async function grade(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     setBusy(true);
     setNotice(undefined);
+
     try {
+      const payload = assistant
+        ? {
+            action: "SUGGEST" as const,
+            score: Number(formData.get("score")),
+            reason: String(formData.get("reason") ?? ""),
+          }
+        : {
+            action: "GRADE" as const,
+            answers: manualQuestions.map((question) => ({
+              questionId: question.id,
+              score: Number(formData.get(`score-${question.id}`)),
+              feedback:
+                String(
+                  formData.get(`feedback-${question.id}`) ?? "",
+                ).trim() || undefined,
+            })),
+            reason: String(formData.get("reason") ?? ""),
+          };
+
       await apiRequest(`/api/v1/quiz-attempts/${attempt.id}/grade`, {
         method: "PATCH",
-        ...jsonRequest({
-          action: assistant ? "SUGGEST" : "GRADE",
-          score: Number(formData.get("score")),
-          reason: String(formData.get("reason") ?? ""),
-        }),
+        ...jsonRequest(payload),
       });
+
       setNotice({
-        message: assistant ? "Đã lưu điểm đề xuất." : "Đã chấm bài kiểm tra.",
+        message: assistant
+          ? "Đã lưu điểm đề xuất."
+          : "Đã chấm từng câu và cập nhật tổng điểm.",
         tone: "success",
       });
       router.refresh();
@@ -658,10 +807,12 @@ function QuizGradingEditor({
   async function publish() {
     const reason = await requestReason({
       title: "Công bố điểm bài kiểm tra",
-      description: "Sau khi công bố, học sinh/phụ huynh có thể xem kết quả theo chính sách hiện tại.",
+      description:
+        "Sau khi công bố, học sinh/phụ huynh có thể xem kết quả theo chính sách hiện tại.",
       confirmLabel: "Công bố điểm",
     });
     if (!reason) return;
+
     setBusy(true);
     setNotice(undefined);
     try {
@@ -685,11 +836,15 @@ function QuizGradingEditor({
   return (
     <div className="space-y-5">
       <MutationNotice {...notice} />
+
       <SectionCard title="Lượt làm bài kiểm tra">
         <div className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <p className="text-[#667085]">Học sinh</p>
             <p className="mt-1 font-semibold">{attempt.student.name}</p>
+            <p className="mt-1 text-xs text-[#667085]">
+              {attempt.student.profile?.studentCode ?? attempt.student.email}
+            </p>
           </div>
           <div>
             <p className="text-[#667085]">Lớp</p>
@@ -710,7 +865,7 @@ function QuizGradingEditor({
         </div>
       </SectionCard>
 
-      <SectionCard title="Câu trả lời">
+      <SectionCard title="Câu trả lời và chấm điểm">
         <div className="space-y-4">
           {attempt.quiz.questions.map((question) => {
             const answer = answerByQuestion.get(question.id);
@@ -719,17 +874,32 @@ function QuizGradingEditor({
                 ? answer.selectedChoiceIds
                 : [],
             );
+            const objective = isObjectiveQuestion(question.type);
+
             return (
               <article
                 key={question.id}
                 className="rounded-xl border border-[#E4E7EC] p-4"
               >
-                <p className="text-sm font-semibold">
-                  Câu {question.order} ({question.score} điểm) · {question.type}
-                </p>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <p className="text-sm font-semibold">
+                    Câu {question.order} ({question.score} điểm) · {question.type}
+                  </p>
+                  {objective ? (
+                    <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                      Tự chấm
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                      Giáo viên chấm
+                    </span>
+                  )}
+                </div>
+
                 <p className="mt-2 text-sm whitespace-pre-wrap text-[#344054]">
                   {question.content}
                 </p>
+
                 {question.choices.length ? (
                   <div className="mt-3 space-y-2">
                     {question.choices.map((choice) => (
@@ -752,15 +922,49 @@ function QuizGradingEditor({
                     {answer?.answerText || "Chưa có câu trả lời."}
                   </p>
                 )}
-                <p className="mt-3 text-xs text-[#667085]">
-                  Điểm tự động: {answer?.autoScore ?? "—"} · Điểm tay:{" "}
-                  {answer?.manualScore ?? "—"}
-                </p>
+
                 {question.explanation ? (
-                  <p className="mt-2 text-xs text-[#667085]">
-                    Giải thích: {question.explanation}
+                  <p className="mt-3 rounded-lg bg-blue-50/60 p-3 text-xs text-[#475467]">
+                    Hướng dẫn / đáp án: {question.explanation}
                   </p>
                 ) : null}
+
+                {objective ? (
+                  <p className="mt-3 text-xs font-medium text-[#667085]">
+                    Điểm tự động: {answer?.autoScore ?? 0}/{question.score}
+                  </p>
+                ) : !assistant ? (
+                  <div className="mt-4 grid gap-4 border-t border-[#EAECF0] pt-4 sm:grid-cols-[180px_1fr]">
+                    <Field label={`Điểm câu (tối đa ${question.score})`} required>
+                      <input
+                        form="quiz-grade-form"
+                        type="number"
+                        name={`score-${question.id}`}
+                        min={0}
+                        max={Number(question.score)}
+                        step="0.25"
+                        defaultValue={answer?.manualScore ?? 0}
+                        required
+                        disabled={Boolean(attempt.publishedAt)}
+                        className={INPUT_CLASS}
+                      />
+                    </Field>
+                    <Field label="Nhận xét câu">
+                      <textarea
+                        form="quiz-grade-form"
+                        name={`feedback-${question.id}`}
+                        defaultValue={answer?.feedback ?? ""}
+                        disabled={Boolean(attempt.publishedAt)}
+                        className={TEXTAREA_CLASS}
+                      />
+                    </Field>
+                  </div>
+                ) : (
+                  <p className="mt-3 text-xs text-[#667085]">
+                    Trợ giảng đề xuất điểm tổng ở phần dưới; giáo viên sẽ chấm
+                    điểm chính thức từng câu.
+                  </p>
+                )}
               </article>
             );
           })}
@@ -768,36 +972,63 @@ function QuizGradingEditor({
       </SectionCard>
 
       <SectionCard
-        title={assistant ? "Đề xuất điểm quiz" : "Chấm điểm quiz"}
+        title={assistant ? "Đề xuất điểm bài kiểm tra" : "Tổng hợp chấm điểm"}
         id="edit"
       >
-        <form onSubmit={grade} className="space-y-4">
+        <form id="quiz-grade-form" onSubmit={grade} className="space-y-4">
+          {!assistant ? (
+            <div className="grid gap-3 rounded-xl bg-[#F7F9FF] p-4 text-sm sm:grid-cols-3">
+              <div>
+                <p className="text-[#667085]">Điểm tự động</p>
+                <p className="mt-1 text-lg font-semibold text-[#172033]">
+                  {attempt.autoScore ?? 0}
+                </p>
+              </div>
+              <div>
+                <p className="text-[#667085]">Điểm giáo viên chấm</p>
+                <p className="mt-1 text-lg font-semibold text-[#172033]">
+                  {attempt.manualScore ?? "Chưa chấm"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[#667085]">Tổng điểm</p>
+                <p className="mt-1 text-lg font-semibold text-[#243467]">
+                  {attempt.finalScore ?? "Chưa hoàn tất"} / {attempt.quiz.maxScore}
+                </p>
+              </div>
+            </div>
+          ) : null}
+
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={`Điểm (tối đa ${attempt.quiz.maxScore})`} required>
-              <input
-                type="number"
-                name="score"
-                min={0}
-                max={Number(attempt.quiz.maxScore)}
-                step="0.25"
-                defaultValue={
-                  assistant
-                    ? (attempt.assistantSuggestedScore ?? "")
-                    : (attempt.finalScore ?? attempt.autoScore ?? "")
-                }
+            {assistant ? (
+              <Field
+                label={`Điểm đề xuất (tối đa ${attempt.quiz.maxScore})`}
                 required
-                className={INPUT_CLASS}
-              />
-            </Field>
-            <Field label="Lý do" required>
+              >
+                <input
+                  type="number"
+                  name="score"
+                  min={0}
+                  max={Number(attempt.quiz.maxScore)}
+                  step="0.25"
+                  defaultValue={attempt.assistantSuggestedScore ?? ""}
+                  required
+                  className={INPUT_CLASS}
+                />
+              </Field>
+            ) : null}
+
+            <Field label="Lý do chấm / điều chỉnh" required>
               <input
                 name="reason"
                 required
                 minLength={3}
+                disabled={Boolean(attempt.publishedAt)}
                 className={INPUT_CLASS}
               />
             </Field>
           </div>
+
           <div className="flex flex-wrap justify-end gap-3">
             <button
               disabled={busy || Boolean(attempt.publishedAt)}
@@ -805,9 +1036,10 @@ function QuizGradingEditor({
             >
               <BusyLabel
                 busy={busy}
-                idle={assistant ? "Lưu đề xuất" : "Lưu điểm"}
+                idle={assistant ? "Lưu đề xuất" : "Lưu chấm điểm"}
               />
             </button>
+
             {!assistant ? (
               <button
                 type="button"
