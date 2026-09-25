@@ -243,7 +243,13 @@ export async function saveQuizAnswers(
     include: {
       quiz: {
         include: {
-          questions: { select: { id: true } },
+          questions: {
+            select: {
+              id: true,
+              type: true,
+              choices: { select: { id: true } },
+            },
+          },
         },
       },
     },
@@ -254,14 +260,50 @@ export async function saveQuizAnswers(
     throw new AppError("CONFLICT", "Bài đã hết giờ và được tự động nộp.");
   }
 
-  const questionIds = new Set(
-    attempt.quiz.questions.map((question) => question.id),
+  const questionById = new Map(
+    attempt.quiz.questions.map((question) => [question.id, question]),
   );
-  if (input.answers.some((answer) => !questionIds.has(answer.questionId))) {
-    throw new AppError(
-      "VALIDATION_ERROR",
-      "Câu trả lời không thuộc bài kiểm tra.",
-    );
+
+  for (const answer of input.answers) {
+    const question = questionById.get(answer.questionId);
+    if (!question) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "Câu trả lời không thuộc bài kiểm tra.",
+      );
+    }
+
+    const selectedChoiceIds = [...new Set(answer.selectedChoiceIds ?? [])];
+    if (selectedChoiceIds.length !== (answer.selectedChoiceIds ?? []).length) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "Đáp án lựa chọn không được chứa giá trị trùng.",
+      );
+    }
+
+    if (isObjectiveQuestion(question.type)) {
+      const validChoiceIds = new Set(question.choices.map((choice) => choice.id));
+      if (selectedChoiceIds.some((choiceId) => !validChoiceIds.has(choiceId))) {
+        throw new AppError(
+          "VALIDATION_ERROR",
+          "Đáp án được chọn không thuộc câu hỏi.",
+        );
+      }
+      if (
+        question.type !== "MULTIPLE_CHOICE" &&
+        selectedChoiceIds.length > 1
+      ) {
+        throw new AppError(
+          "VALIDATION_ERROR",
+          "Câu hỏi này chỉ được chọn một đáp án.",
+        );
+      }
+    } else if (selectedChoiceIds.length > 0) {
+      throw new AppError(
+        "VALIDATION_ERROR",
+        "Câu tự luận không nhận đáp án lựa chọn.",
+      );
+    }
   }
 
   await prisma.$transaction(
