@@ -6,6 +6,7 @@ import {
   LoaderCircle,
   Maximize2,
   Minimize2,
+  Pause,
   Play,
 } from "lucide-react";
 
@@ -23,15 +24,26 @@ type PlaybackData = {
 };
 
 type ApiEnvelope<T> =
-  { success: true; data: T } | { success: false; error: { message: string } };
+  | { success: true; data: T }
+  | { success: false; error: { message: string } };
 
 const watermarkPositions = [
-  "top-5 left-5",
-  "top-5 right-5",
-  "bottom-16 right-5",
-  "bottom-16 left-5",
+  "top-4 left-4",
+  "top-4 right-4",
+  "bottom-16 right-4",
+  "bottom-16 left-4",
   "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2",
 ];
+
+function formatTime(value: number) {
+  if (!Number.isFinite(value) || value < 0) return "0:00";
+
+  const seconds = Math.floor(value);
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+
+  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+}
 
 export function ProtectedVideoPlayer({
   recordingId,
@@ -46,10 +58,10 @@ export function ProtectedVideoPlayer({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const [position, setPosition] = useState(0);
-  const containerRef =
-    useRef<HTMLDivElement>(null);
-  const [isFullscreen, setIsFullscreen] =
-    useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
   useEffect(() => {
     if (!playback) return;
@@ -89,60 +101,51 @@ export function ProtectedVideoPlayer({
   );
 
   useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(
-        document.fullscreenElement ===
-        containerRef.current,
-      );
-    };
+    if (!isExpanded) return;
 
-    document.addEventListener(
-      "fullscreenchange",
-      handleFullscreenChange,
-    );
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
 
     return () => {
-      document.removeEventListener(
-        "fullscreenchange",
-        handleFullscreenChange,
-      );
+      document.body.style.overflow = previousOverflow;
     };
-  }, []);
+  }, [isExpanded]);
 
-  async function toggleFullscreen() {
-    const container =
-      containerRef.current;
+  async function togglePlay() {
+    const video = videoRef.current;
+    if (!video || !playback) return;
 
-    if (!container) return;
-
-    if (
-      document.fullscreenElement ===
-      container
-    ) {
-      await document.exitFullscreen();
-      return;
+    if (video.paused) {
+      await video.play();
+    } else {
+      video.pause();
     }
+  }
 
-    await container.requestFullscreen();
+  function seekTo(value: number) {
+    const video = videoRef.current;
+    if (!video || !Number.isFinite(value)) return;
+
+    video.currentTime = value;
+    setCurrentTime(value);
+  }
+
+  function toggleExpanded() {
+    setIsExpanded((current) => !current);
   }
 
   async function startPlayback() {
     setPending(true);
     setError(undefined);
     try {
-      const storageKey =
-        "lms-video-view-session";
-
+      const storageKey = "lms-video-view-session";
       const existingViewSessionId =
-        window.localStorage.getItem(
-          storageKey,
-        );
+        window.localStorage.getItem(storageKey);
 
-      const authorizeUrl =
-        new URL(
-          `/api/v1/videos/${recordingId}/authorize`,
-          window.location.origin,
-        );
+      const authorizeUrl = new URL(
+        `/api/v1/videos/${recordingId}/authorize`,
+        window.location.origin,
+      );
 
       if (existingViewSessionId) {
         authorizeUrl.searchParams.set(
@@ -160,14 +163,17 @@ export function ProtectedVideoPlayer({
       );
       const result = (await response.json()) as ApiEnvelope<PlaybackData>;
       if (!result.success) throw new Error(result.error.message);
+
       window.localStorage.setItem(
         storageKey,
         result.data.viewSessionId,
       );
+
       const video = videoRef.current;
       if (!video) throw new Error("Không khởi tạo được trình phát.");
 
       hlsRef.current?.destroy();
+
       if (
         result.data.mimeType === "application/vnd.apple.mpegurl" &&
         Hls.isSupported()
@@ -185,6 +191,7 @@ export function ProtectedVideoPlayer({
       } else {
         video.src = result.data.streamUrl;
       }
+
       setPlayback(result.data);
       await video.play();
     } catch (caught) {
@@ -201,18 +208,43 @@ export function ProtectedVideoPlayer({
   return (
     <section>
       <div
-        ref={containerRef}
-        className="relative aspect-video overflow-hidden rounded-2xl bg-[#101828] shadow-xl"
-        onContextMenu={(event) =>
-          event.preventDefault()
+        className={
+          isExpanded
+            ? "fixed inset-0 z-[100] h-screen w-screen overflow-hidden bg-black supports-[height:100dvh]:h-[100dvh]"
+            : "relative aspect-video overflow-hidden rounded-2xl bg-[#101828] shadow-xl"
         }
+        onContextMenu={(event) => event.preventDefault()}
       >
         <video
           ref={videoRef}
-          controls={Boolean(playback)}
-          controlsList="nodownload"
+          controls={false}
+          controlsList="nodownload nofullscreen noremoteplayback"
           disablePictureInPicture
+          disableRemotePlayback
           playsInline
+          preload="metadata"
+          onClick={() => {
+            if (playback) void togglePlay();
+          }}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          onLoadedMetadata={(event) => {
+            setDuration(
+              Number.isFinite(event.currentTarget.duration)
+                ? event.currentTarget.duration
+                : 0,
+            );
+          }}
+          onDurationChange={(event) => {
+            setDuration(
+              Number.isFinite(event.currentTarget.duration)
+                ? event.currentTarget.duration
+                : 0,
+            );
+          }}
+          onTimeUpdate={(event) => {
+            setCurrentTime(event.currentTarget.currentTime);
+          }}
           className="protected-video size-full bg-black object-contain"
         >
           Trình duyệt của bạn không hỗ trợ video HTML5.
@@ -220,9 +252,6 @@ export function ProtectedVideoPlayer({
 
         {!playback ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-[radial-gradient(circle_at_center,#25396f_0%,#101828_70%)] p-6 text-center">
-            {/* <span className="flex size-16 items-center justify-center rounded-full bg-white/10 text-white ring-1 ring-white/20">
-              <Play aria-hidden="true" className="ml-1 size-7" />
-            </span> */}
             <p className="mt-5 text-sm text-blue-100">
               Quyền truy cập sẽ được kiểm tra trước khi phát.
             </p>
@@ -245,37 +274,63 @@ export function ProtectedVideoPlayer({
         {playback ? (
           <div
             aria-hidden="true"
-            className={`pointer-events-none absolute z-10 rounded-lg bg-black/35 px-3 py-2 text-[10px] leading-4 text-white/75 backdrop-blur-[1px] transition-all duration-700 sm:text-xs ${watermarkPositions[position]}`}
+            className={`pointer-events-none absolute z-10 max-w-[75%] rounded-md bg-black/30 px-2 py-1 text-[10px] font-semibold leading-4 text-white/70 transition-all duration-700 sm:text-xs ${watermarkPositions[position]}`}
           >
-            <p className="font-semibold">{playback.watermark.viewerName}</p>
-            <p>
-              {playback.watermark.viewerCode} · {playback.watermark.maskedEmail}
-            </p>
-            <p>
-              {new Date().toLocaleString("vi-VN")} ·{" "}
-              {playback.watermark.sessionCode}
-            </p>
+            {playback.watermark.viewerCode} · LMS GDSG
           </div>
         ) : null}
+
         {playback ? (
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            className="absolute bottom-14 right-4 z-20 flex size-10 items-center justify-center rounded-lg bg-black/60 text-white backdrop-blur hover:bg-black/75"
-            aria-label={
-              isFullscreen
-                ? "Thoát toàn màn hình"
-                : "Toàn màn hình"
-            }
-          >
-            {isFullscreen ? (
-              <Minimize2 className="size-5" />
-            ) : (
-              <Maximize2 className="size-5" />
-            )}
-          </button>
+          <div className="absolute inset-x-0 bottom-0 z-30 flex items-center gap-2 bg-gradient-to-t from-black/85 via-black/55 to-transparent px-3 pb-3 pt-8 text-white sm:gap-3 sm:px-4">
+            <button
+              type="button"
+              onClick={() => void togglePlay()}
+              className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20"
+              aria-label={isPlaying ? "Tạm dừng" : "Phát video"}
+            >
+              {isPlaying ? (
+                <Pause className="size-4" />
+              ) : (
+                <Play className="ml-0.5 size-4" />
+              )}
+            </button>
+
+            <span className="w-10 shrink-0 text-right text-[10px] tabular-nums text-white/80 sm:text-xs">
+              {formatTime(currentTime)}
+            </span>
+
+            <input
+              type="range"
+              min={0}
+              max={duration > 0 ? duration : 0}
+              step={0.1}
+              value={Math.min(currentTime, duration > 0 ? duration : 0)}
+              disabled={duration <= 0}
+              onChange={(event) => seekTo(Number(event.currentTarget.value))}
+              aria-label="Tua video"
+              className="min-w-0 flex-1 cursor-pointer accent-white disabled:cursor-default"
+            />
+
+            <span className="w-10 shrink-0 text-[10px] tabular-nums text-white/80 sm:text-xs">
+              {formatTime(duration)}
+            </span>
+
+            <button
+              type="button"
+              onClick={toggleExpanded}
+              className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20"
+              aria-label={isExpanded ? "Thu nhỏ video" : "Mở rộng video"}
+            >
+              {isExpanded ? (
+                <Minimize2 className="size-4" />
+              ) : (
+                <Maximize2 className="size-4" />
+              )}
+            </button>
+          </div>
         ) : null}
       </div>
+
       {error ? (
         <p
           role="alert"
@@ -284,13 +339,6 @@ export function ProtectedVideoPlayer({
           {error}
         </p>
       ) : null}
-      {/* <div className="mt-4 flex items-start gap-3 rounded-xl border border-[#E4E7EC] bg-white p-4">
-        <ShieldCheck className="mt-0.5 size-5 shrink-0 text-[#4059A5]" />
-        <p className="text-xs leading-5 text-[#667085]">
-          Video được cấp quyền theo phiên và gắn watermark động. Không thể ngăn
-          tuyệt đối việc quay màn hình trên thiết bị người dùng.
-        </p>
-      </div> */}
     </section>
   );
 }
