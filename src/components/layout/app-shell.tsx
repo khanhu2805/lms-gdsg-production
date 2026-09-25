@@ -53,19 +53,16 @@ export function AppShell({
   const sidebar = (
     <div className="flex h-full flex-col">
       <div
-        className={cn(
-          "flex h-[108px] shrink-0 items-center justify-center border-b border-white/10 px-4",
-          collapsed && "h-20 px-2",
-        )}
+        className="flex h-20 shrink-0 items-center justify-center border-b border-white/10 px-3"
       >
         <BrandLogo
           compact={collapsed}
-          textClassName="text-white/90"
+          showName={false}
         />
       </div>
       <nav
         aria-label="Điều hướng chính"
-        className="flex-1 space-y-1 overflow-y-auto px-3 py-5"
+        className="sidebar-nav flex-1 space-y-1 overflow-y-auto px-3 py-5"
       >
         {navigation.map((item) => {
           const active =
@@ -167,6 +164,11 @@ export function AppShell({
           >
             <Menu className="size-5" />
           </button>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-[#243467] sm:text-base">
+              Luyện thi Giáo dục Sài Gòn
+            </p>
+          </div>
           {/* <label className="relative hidden max-w-lg flex-1 md:block">
             <span className="sr-only">Tìm kiếm</span>
             <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-[#98A2B3]" />

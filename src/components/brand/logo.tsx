@@ -4,10 +4,12 @@ import { cn } from "@/lib/utils";
 
 export function BrandLogo({
   compact = false,
+  showName = true,
   className,
   textClassName,
 }: {
   compact?: boolean;
+  showName?: boolean;
   className?: string;
   textClassName?: string;
 }) {
@@ -15,7 +17,7 @@ export function BrandLogo({
     <div
       className={cn(
         "flex flex-col items-center justify-center",
-        compact ? "gap-0" : "gap-1.5",
+        showName && !compact ? "gap-1.5" : "gap-0",
         className,
       )}
     >
@@ -31,7 +33,7 @@ export function BrandLogo({
         )}
       />
 
-      {!compact ? (
+      {showName && !compact ? (
         <span
           className={cn(
             "whitespace-nowrap text-center text-[11px] font-semibold leading-4 tracking-[0.01em]",
