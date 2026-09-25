@@ -276,7 +276,7 @@ export function ProtectedVideoPlayer({
             aria-hidden="true"
             className={`pointer-events-none absolute z-10 max-w-[75%] rounded-md bg-black/30 px-2 py-1 text-[10px] font-semibold leading-4 text-white/70 transition-all duration-700 sm:text-xs ${watermarkPositions[position]}`}
           >
-            {playback.watermark.viewerCode} · LMS GDSG
+            {playback.watermark.viewerCode} · Luyện thi Giáo dục Sài Gòn
           </div>
         ) : null}
 
