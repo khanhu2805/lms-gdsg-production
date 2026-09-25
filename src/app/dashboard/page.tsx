@@ -25,6 +25,7 @@ import { env } from "@/config/env";
 import { ROLE_LABELS } from "@/config/roles";
 import { requireActor, type Actor } from "@/lib/auth/actor";
 import { prisma } from "@/lib/database/client";
+import { getStorageUsageBytes } from "@/lib/storage/storage-usage";
 import { formatDateTime } from "@/lib/utils";
 import { classScopeWhere } from "@/modules/classes/class.repository";
 import { resolveParentContext } from "@/modules/dashboard/parent-context";
@@ -168,10 +169,7 @@ async function getRoleStats(
         },
       }),
       prisma.job.count({ where: { status: "FAILED" } }),
-      prisma.asset.aggregate({
-        where: { status: "READY", deletedAt: null },
-        _sum: { sizeBytes: true },
-      }),
+      getStorageUsageBytes(),
       prisma.attendance.count({
         where: {
           createdAt: { gte: thirtyDaysAgo },
@@ -191,7 +189,7 @@ async function getRoleStats(
       { label: "Lớp vượt sức chứa", value: overCapacity, hint: "Cần xử lý sĩ số", icon: CircleAlert, tone: overCapacity ? "red" : "green" },
       { label: "Nội dung chờ xử lý", value: pendingContents, hint: "Duyệt hoặc mở lại", icon: BookOpenCheck, tone: pendingContents ? "amber" : "green" },
       { label: "Job lỗi", value: failedJobs, hint: "Job nền FAILED", icon: Database, tone: failedJobs ? "red" : "green" },
-      { label: "Dung lượng lưu trữ", value: formatBytes(storage._sum.sizeBytes), hint: "Asset READY", icon: HardDrive, tone: "blue" },
+      { label: "Dung lượng lưu trữ", value: formatBytes(storage), hint: "Dung lượng thực tế trên máy chủ", icon: HardDrive, tone: "blue" },
       { label: "Tỷ lệ điểm danh", value: `${percentage(attendancePresent, attendanceTotal)}%`, hint: "30 ngày gần nhất", icon: ClipboardCheck, tone: "green" },
     ];
   }
