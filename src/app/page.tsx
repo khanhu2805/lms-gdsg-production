@@ -23,7 +23,7 @@ export default async function LoginPage({
   return (
     <main className="grid min-h-screen lg:grid-cols-[1.08fr_0.92fr]">
       <section className="surface-grid relative hidden overflow-hidden bg-[#243467] px-12 py-10 text-white lg:flex lg:flex-col">
-        <BrandLogo/>
+        <BrandLogo textClassName="text-white/90" />
         <div className="my-auto max-w-2xl">
           <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3.5 py-2 text-xs font-semibold tracking-wide">
             <ShieldCheck aria-hidden="true" className="size-4" />
@@ -54,16 +54,19 @@ export default async function LoginPage({
           </div>
         </div>
         <p className="text-xs text-blue-200">
-          © {new Date().getFullYear()} Công ty Giáo dục Sài Gòn
+          © {new Date().getFullYear()} Luyện thi Giáo dục Sài Gòn
         </p>
       </section>
 
       <section className="flex min-h-screen items-center justify-center bg-white px-6 py-12 sm:px-12">
         <div className="w-full max-w-md">
-          <BrandLogo className="mb-12 lg:hidden" />
+          <BrandLogo
+            className="mb-12 lg:hidden"
+            textClassName="text-[#243467]"
+          />
           <p className="text-sm font-semibold text-[#4F6FCF]">CHÀO MỪNG</p>
           <h2 className="mt-3 text-3xl font-bold tracking-tight text-[#172033]">
-            Đăng nhập LMS GDSG
+            Đăng nhập hệ thống học tập
           </h2>
           <p className="mt-3 text-sm leading-6 text-[#667085]">
             Sử dụng tài khoản Google đã được quản trị viên tạo sẵn. Hệ thống

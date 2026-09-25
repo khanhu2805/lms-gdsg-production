@@ -9,13 +9,34 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "LMS GDSG",
-    template: "%s | LMS GDSG",
+    default:
+      "Hệ thống học tập | Luyện thi Giáo dục Sài Gòn",
+    template:
+      "%s | Luyện thi Giáo dục Sài Gòn",
   },
+
   description:
-    "Hệ thống quản lý học tập tự lưu trữ của Công ty Giáo dục Sài Gòn.",
-  applicationName: "LMS GDSG",
-  robots: { index: false, follow: false },
+    "Nền tảng học tập trực tuyến dành cho học sinh, giáo viên và phụ huynh của Luyện thi Giáo dục Sài Gòn.",
+
+  applicationName:
+    "Luyện thi Giáo dục Sài Gòn",
+
+  authors: [
+    {
+      name: "Luyện thi Giáo dục Sài Gòn",
+    },
+  ],
+
+  creator:
+    "Luyện thi Giáo dục Sài Gòn",
+
+  publisher:
+    "Luyện thi Giáo dục Sài Gòn",
+
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export const viewport: Viewport = {

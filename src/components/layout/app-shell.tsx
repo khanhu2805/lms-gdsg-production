@@ -54,11 +54,14 @@ export function AppShell({
     <div className="flex h-full flex-col">
       <div
         className={cn(
-          "flex h-20 shrink-0 items-center border-b border-white/10 px-5",
-          collapsed && "justify-center px-2",
+          "flex h-24 shrink-0 items-center justify-center border-b border-white/10 px-5",
+          collapsed && "h-20 px-2",
         )}
       >
-        <BrandLogo compact={collapsed} className="h-9/12"/>
+        <BrandLogo
+          compact={collapsed}
+          textClassName="text-white/90"
+        />
       </div>
       <nav
         aria-label="Điều hướng chính"
