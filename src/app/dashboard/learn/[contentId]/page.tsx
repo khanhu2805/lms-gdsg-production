@@ -42,7 +42,7 @@ export default async function LearnerContentPage({ params }: { params: Promise<{
       .toUpperCase();
 
   const watermark =
-    `${accountCode} • LMS GDSG`;
+    `${accountCode} • Luyện thi Giáo dục Sài Gòn`;
   const { contentId } = await params;
   if (actor.role !== "STUDENT" && actor.role !== "PARENT") redirect(`/dashboard/contents/${contentId}`);
 
