@@ -14,6 +14,9 @@ import { classScopeWhere } from "@/modules/classes/class.repository";
 export type SectionData = {
   columns: string[];
   rows: TableRow[];
+  filters?: {
+    classes?: Array<{ id: string; label: string }>;
+  };
 };
 
 function textMatch(search: string | undefined) {
@@ -58,7 +61,14 @@ export async function loadSectionData(
   actor: Actor,
   section: string,
   search?: string,
-  options: { page?: number; pageSize?: number; studentId?: string } = {},
+  options: {
+    page?: number;
+    pageSize?: number;
+    studentId?: string;
+    gradingClassId?: string;
+    gradingKind?: "ASSIGNMENT" | "QUIZ";
+    gradingStatus?: "PENDING" | "GRADED" | "PUBLISHED";
+  } = {},
 ): Promise<SectionData> {
   const page = Math.max(1, options.page ?? 1);
   const pageSize = [20, 50, 100].includes(options.pageSize ?? 20)
@@ -91,7 +101,8 @@ export async function loadSectionData(
             },
           }
         : classScopeWhere(actor),
-    select: { id: true },
+    select: { id: true, code: true, name: true },
+    orderBy: { code: "asc" },
   });
   const classIds = classes.map(({ id }) => id);
   const isStaffActor = [
@@ -464,61 +475,173 @@ export async function loadSectionData(
   }
 
   if (section === "grading") {
+    const selectedClassId =
+      options.gradingClassId && classIds.includes(options.gradingClassId)
+        ? options.gradingClassId
+        : undefined;
+    const gradingKind = options.gradingKind;
+    const gradingStatus = options.gradingStatus;
+
+    const submissionStatusWhere =
+      gradingStatus === "PENDING"
+        ? { publishedAt: null, finalScore: null }
+        : gradingStatus === "GRADED"
+          ? { publishedAt: null, finalScore: { not: null } }
+          : gradingStatus === "PUBLISHED"
+            ? { publishedAt: { not: null } }
+            : {};
+
+    const quizStatusWhere =
+      gradingStatus === "PENDING"
+        ? { publishedAt: null, finalScore: null }
+        : gradingStatus === "GRADED"
+          ? { publishedAt: null, finalScore: { not: null } }
+          : gradingStatus === "PUBLISHED"
+            ? { publishedAt: { not: null } }
+            : {};
+
     const [submissions, quizAttempts] = await Promise.all([
-      prisma.submission.findMany({
-        where: {
-          assignment: { content: { classId: { in: classIds } } },
-          status: { not: "DRAFT" },
-          ...(search ? { student: { name: textMatch(search) } } : {}),
-        },
-        select: {
-          id: true,
-          status: true,
-          submittedAt: true,
-          finalScore: true,
-          assistantSuggestedScore: true,
-          student: { select: { name: true } },
-          assignment: {
-            select: {
-              maxScore: true,
-              content: { select: { title: true } },
+      gradingKind === "QUIZ"
+        ? Promise.resolve([])
+        : prisma.submission.findMany({
+            where: {
+              assignment: {
+                content: {
+                  classId: selectedClassId
+                    ? selectedClassId
+                    : { in: classIds },
+                },
+              },
+              status: { not: "DRAFT" },
+              ...submissionStatusWhere,
+              ...(search
+                ? {
+                    OR: [
+                      { student: { name: textMatch(search) } },
+                      {
+                        assignment: {
+                          content: { title: textMatch(search) },
+                        },
+                      },
+                      {
+                        assignment: {
+                          content: {
+                            courseClass: { code: textMatch(search) },
+                          },
+                        },
+                      },
+                    ],
+                  }
+                : {}),
             },
-          },
-        },
-        orderBy: { submittedAt: "desc" },
-        take: skip + take,
-      }),
-      prisma.quizAttempt.findMany({
-        where: {
-          quiz: { content: { classId: { in: classIds } } },
-          status: { not: "IN_PROGRESS" },
-          ...(search ? { student: { name: textMatch(search) } } : {}),
-        },
-        select: {
-          id: true,
-          status: true,
-          submittedAt: true,
-          finalScore: true,
-          assistantSuggestedScore: true,
-          student: { select: { name: true } },
-          quiz: {
             select: {
-              maxScore: true,
-              content: { select: { title: true } },
+              id: true,
+              status: true,
+              submittedAt: true,
+              finalScore: true,
+              assistantSuggestedScore: true,
+              publishedAt: true,
+              student: {
+                select: {
+                  name: true,
+                  profile: { select: { studentCode: true } },
+                },
+              },
+              assignment: {
+                select: {
+                  maxScore: true,
+                  content: {
+                    select: {
+                      title: true,
+                      courseClass: { select: { code: true } },
+                    },
+                  },
+                },
+              },
             },
-          },
-        },
-        orderBy: { submittedAt: "desc" },
-        take: skip + take,
-      }),
+            orderBy: { submittedAt: "desc" },
+            take: skip + take,
+          }),
+      gradingKind === "ASSIGNMENT"
+        ? Promise.resolve([])
+        : prisma.quizAttempt.findMany({
+            where: {
+              quiz: {
+                content: {
+                  classId: selectedClassId
+                    ? selectedClassId
+                    : { in: classIds },
+                },
+              },
+              status: { not: "IN_PROGRESS" },
+              ...quizStatusWhere,
+              ...(search
+                ? {
+                    OR: [
+                      { student: { name: textMatch(search) } },
+                      { quiz: { content: { title: textMatch(search) } } },
+                      {
+                        quiz: {
+                          content: {
+                            courseClass: { code: textMatch(search) },
+                          },
+                        },
+                      },
+                    ],
+                  }
+                : {}),
+            },
+            select: {
+              id: true,
+              status: true,
+              submittedAt: true,
+              finalScore: true,
+              assistantSuggestedScore: true,
+              publishedAt: true,
+              student: {
+                select: {
+                  name: true,
+                  profile: { select: { studentCode: true } },
+                },
+              },
+              quiz: {
+                select: {
+                  maxScore: true,
+                  content: {
+                    select: {
+                      title: true,
+                      courseClass: { select: { code: true } },
+                    },
+                  },
+                },
+              },
+            },
+            orderBy: { submittedAt: "desc" },
+            take: skip + take,
+          }),
     ]);
+
     const rows = [
       ...submissions.map((submission) => ({
         id: submission.id,
         submittedAt: submission.submittedAt,
         cells: [
-          submission.student.name,
-          submission.assignment.content.title,
+          <div key="student">
+            <p className="font-semibold text-[#172033]">
+              {submission.student.name}
+            </p>
+            <p className="mt-1 text-xs text-[#667085]">
+              {submission.student.profile?.studentCode ?? "—"}
+            </p>
+          </div>,
+          <div key="activity">
+            <p className="font-medium text-[#172033]">
+              {submission.assignment.content.title}
+            </p>
+            <p className="mt-1 text-xs text-[#667085]">
+              {submission.assignment.content.courseClass.code}
+            </p>
+          </div>,
           pill("Bài tập"),
           formatDateTime(submission.submittedAt),
           submission.finalScore !== null
@@ -526,10 +649,12 @@ export async function loadSectionData(
             : submission.assistantSuggestedScore !== null
               ? `Đề xuất ${submission.assistantSuggestedScore}`
               : "Chưa chấm",
-          pill(submission.status),
+          submission.publishedAt
+            ? pill("Đã công bố")
+            : <StatusBadge key="status" status={submission.status} />,
           rowActions(`/dashboard/grading/${submission.id}`, {
             canEdit: true,
-            editLabel: "Chấm bài",
+            editLabel: submission.publishedAt ? "Xem bài" : "Chấm bài",
           }),
         ],
       })),
@@ -537,8 +662,22 @@ export async function loadSectionData(
         id: `quiz-${attempt.id}`,
         submittedAt: attempt.submittedAt,
         cells: [
-          attempt.student.name,
-          attempt.quiz.content.title,
+          <div key="student">
+            <p className="font-semibold text-[#172033]">
+              {attempt.student.name}
+            </p>
+            <p className="mt-1 text-xs text-[#667085]">
+              {attempt.student.profile?.studentCode ?? "—"}
+            </p>
+          </div>,
+          <div key="activity">
+            <p className="font-medium text-[#172033]">
+              {attempt.quiz.content.title}
+            </p>
+            <p className="mt-1 text-xs text-[#667085]">
+              {attempt.quiz.content.courseClass.code}
+            </p>
+          </div>,
           pill("Bài kiểm tra"),
           formatDateTime(attempt.submittedAt),
           attempt.finalScore !== null
@@ -546,10 +685,12 @@ export async function loadSectionData(
             : attempt.assistantSuggestedScore !== null
               ? `Đề xuất ${attempt.assistantSuggestedScore}`
               : "Chưa chấm",
-          pill(attempt.status),
+          attempt.publishedAt
+            ? pill("Đã công bố")
+            : <StatusBadge key="status" status={attempt.status} />,
           rowActions(`/dashboard/grading/quiz-${attempt.id}`, {
             canEdit: true,
-            editLabel: "Chấm quiz",
+            editLabel: attempt.publishedAt ? "Xem bài" : "Chấm bài",
           }),
         ],
       })),
@@ -573,6 +714,12 @@ export async function loadSectionData(
         "Thao tác",
       ],
       rows,
+      filters: {
+        classes: classes.map((courseClass) => ({
+          id: courseClass.id,
+          label: `${courseClass.code} · ${courseClass.name}`,
+        })),
+      },
     };
   }
 
