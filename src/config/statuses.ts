@@ -1,9 +1,11 @@
 import type {
   AttendanceStatus,
-  ClassStatus,
   ClassSessionStatus,
+  ClassStatus,
   ContentPublicationStatus,
   JobStatus,
+  QuizAttemptStatus,
+  SubmissionStatus,
   UserStatus,
 } from "@/generated/prisma/enums";
 
@@ -20,14 +22,20 @@ export const CLASS_STATUS_LABELS: Record<ClassStatus, string> = {
   ARCHIVED: "Đã lưu trữ",
 };
 
-export const CLASS_SESSION_STATUS_LABELS: Record<ClassSessionStatus, string> = {
+export const CLASS_SESSION_STATUS_LABELS: Record<
+  ClassSessionStatus,
+  string
+> = {
   SCHEDULED: "Đã lên lịch",
   ONGOING: "Đang diễn ra",
   COMPLETED: "Đã hoàn thành",
   CANCELLED: "Đã hủy",
 };
 
-export const CONTENT_STATUS_LABELS: Record<ContentPublicationStatus, string> = {
+export const CONTENT_STATUS_LABELS: Record<
+  ContentPublicationStatus,
+  string
+> = {
   DRAFT: "Bản nháp",
   PENDING_TEACHER_REVIEW: "Chờ giáo viên duyệt",
   CHANGES_REQUESTED: "Cần chỉnh sửa",
@@ -40,7 +48,10 @@ export const CONTENT_STATUS_LABELS: Record<ContentPublicationStatus, string> = {
   ARCHIVED: "Đã lưu trữ",
 };
 
-export const ATTENDANCE_STATUS_LABELS: Record<AttendanceStatus, string> = {
+export const ATTENDANCE_STATUS_LABELS: Record<
+  AttendanceStatus,
+  string
+> = {
   PRESENT: "Có mặt",
   LATE: "Đi trễ",
   ABSENT: "Vắng mặt",
@@ -53,4 +64,27 @@ export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
   PROCESSING: "Đang xử lý",
   COMPLETED: "Hoàn thành",
   FAILED: "Thất bại",
+};
+
+export const SUBMISSION_STATUS_LABELS: Record<
+  SubmissionStatus,
+  string
+> = {
+  DRAFT: "Bản nháp",
+  SUBMITTED: "Đã nộp",
+  GRADING: "Đang chấm",
+  GRADED: "Đã chấm",
+  RETURNED: "Đã trả bài",
+  RESUBMISSION_REQUIRED: "Yêu cầu nộp lại",
+};
+
+export const QUIZ_ATTEMPT_STATUS_LABELS: Record<
+  QuizAttemptStatus,
+  string
+> = {
+  IN_PROGRESS: "Đang làm bài",
+  SUBMITTED: "Đã nộp",
+  GRADING: "Đang chấm",
+  GRADED: "Đã chấm",
+  EXPIRED: "Đã hết hạn",
 };
