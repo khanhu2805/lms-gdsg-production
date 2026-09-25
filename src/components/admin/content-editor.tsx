@@ -36,7 +36,12 @@ import {
 
 type ContentType = "LESSON" | "MATERIAL" | "VIDEO" | "ASSIGNMENT" | "QUIZ";
 type QuestionType =
-  "SINGLE_CHOICE" | "TRUE_FALSE" | "SHORT_ANSWER" | "ESSAY" | "FILE_UPLOAD";
+  | "SINGLE_CHOICE"
+  | "MULTIPLE_CHOICE"
+  | "TRUE_FALSE"
+  | "SHORT_ANSWER"
+  | "ESSAY"
+  | "FILE_UPLOAD";
 
 type EditorChoice = {
   key: string;
@@ -141,7 +146,8 @@ const TYPE_LABELS: Record<ContentType, string> = {
 };
 
 const QUESTION_LABELS: Record<QuestionType, string> = {
-  SINGLE_CHOICE: "Một lựa chọn",
+  SINGLE_CHOICE: "Một đáp án",
+  MULTIPLE_CHOICE: "Nhiều đáp án",
   TRUE_FALSE: "Đúng / Sai",
   SHORT_ANSWER: "Trả lời ngắn",
   ESSAY: "Tự luận",
@@ -355,7 +361,11 @@ export function ContentEditor({
   }
 
   function changeQuestionType(index: number, nextType: QuestionType) {
-    const objective = nextType === "SINGLE_CHOICE" || nextType === "TRUE_FALSE";
+    const objective = [
+      "SINGLE_CHOICE",
+      "MULTIPLE_CHOICE",
+      "TRUE_FALSE",
+    ].includes(nextType);
     const choices = objective
       ? nextType === "TRUE_FALSE"
         ? [
@@ -378,12 +388,15 @@ export function ContentEditor({
     setQuestions((current) =>
       current.map((question, index) => {
         if (index !== questionIndex) return question;
+        const multiple = question.type === "MULTIPLE_CHOICE";
         return {
           ...question,
           choices: question.choices.map((choice, currentChoiceIndex) => ({
             ...choice,
             ...(currentChoiceIndex === choiceIndex ? patch : {}),
-            ...(patch.isCorrect === true && currentChoiceIndex !== choiceIndex
+            ...(patch.isCorrect === true &&
+            !multiple &&
+            currentChoiceIndex !== choiceIndex
               ? { isCorrect: false }
               : {}),
           })),
@@ -884,7 +897,7 @@ export function ContentEditor({
         ) : null}
         <div className="rounded-xl border border-[#D9E0F2] bg-[#F7F9FF] p-4">
           <p className="text-sm font-semibold text-[#243467]">
-            Tổng điểm tự động: {maxScore}
+            Tổng điểm tối đa: {maxScore}
           </p>
           <p className="mt-1 text-xs text-[#667085]">
             Tổng điểm tối đa được tính từ điểm của từng câu hỏi.
@@ -990,7 +1003,9 @@ export function ContentEditor({
               {question.choices.length ? (
                 <div className="mt-4 space-y-3">
                   <p className="text-sm font-semibold text-[#344054]">
-                    Lựa chọn (đánh dấu một đáp án đúng)
+                    {question.type === "MULTIPLE_CHOICE"
+                      ? "Lựa chọn (có thể đánh dấu nhiều đáp án đúng)"
+                      : "Lựa chọn (đánh dấu một đáp án đúng)"}
                   </p>
                   {question.choices.map((choice, choiceIndex) => (
                     <div
@@ -998,12 +1013,19 @@ export function ContentEditor({
                       className="flex items-center gap-3 rounded-xl bg-white p-3"
                     >
                       <input
-                        type="radio"
+                        type={
+                          question.type === "MULTIPLE_CHOICE"
+                            ? "checkbox"
+                            : "radio"
+                        }
                         name={`correct-${question.key}`}
                         checked={choice.isCorrect}
-                        onChange={() =>
+                        onChange={(event) =>
                           updateChoice(questionIndex, choiceIndex, {
-                            isCorrect: true,
+                            isCorrect:
+                              question.type === "MULTIPLE_CHOICE"
+                                ? event.target.checked
+                                : true,
                           })
                         }
                         className="size-4"
