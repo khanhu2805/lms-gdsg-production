@@ -177,6 +177,7 @@ export type VideoViewSessionStatus = (typeof VideoViewSessionStatus)[keyof typeo
 
 export const QuestionType = {
   SINGLE_CHOICE: 'SINGLE_CHOICE',
+  MULTIPLE_CHOICE: 'MULTIPLE_CHOICE',
   TRUE_FALSE: 'TRUE_FALSE',
   SHORT_ANSWER: 'SHORT_ANSWER',
   ESSAY: 'ESSAY',
