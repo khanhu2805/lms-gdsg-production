@@ -34,20 +34,15 @@ export default async function LearnerContentPage({ params }: { params: Promise<{
       },
     });
 
+  const accountCode =
+    profile?.studentCode ??
+    profile?.parentCode ??
+    actor.id
+      .slice(0, 8)
+      .toUpperCase();
+
   const watermark =
-    [
-      actor.name,
-
-      profile?.studentCode ??
-      profile?.parentCode ??
-      actor.id
-        .slice(0, 8)
-        .toUpperCase(),
-
-      actor.email,
-    ]
-      .filter(Boolean)
-      .join(" • ");
+    `${accountCode} • LMS GDSG`;
   const { contentId } = await params;
   if (actor.role !== "STUDENT" && actor.role !== "PARENT") redirect(`/dashboard/contents/${contentId}`);
 
