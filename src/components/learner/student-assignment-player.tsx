@@ -23,6 +23,7 @@ type Question = {
     id: string;
     content: string;
     order: number;
+    isCorrect?: boolean;
   }>;
 };
 
@@ -319,45 +320,73 @@ export function StudentAssignmentPlayer({
 
             {isObjectiveQuestion(question.type) ? (
               <div className="mt-4 space-y-2">
-                {question.choices.map((choice) => (
-                  <label
-                    key={choice.id}
-                    className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#E4E7EC] p-3 hover:bg-[#F7F8FC]"
-                  >
-                    <input
-                      disabled={!editable}
-                      type={
-                        question.type === "MULTIPLE_CHOICE"
-                          ? "checkbox"
-                          : "radio"
-                      }
-                      name={question.id}
-                      checked={
-                        answer.selectedChoiceIds?.includes(choice.id) ?? false
-                      }
-                      onChange={(event) => {
-                        const current = answer.selectedChoiceIds ?? [];
-                        const selectedChoiceIds =
-                          question.type === "MULTIPLE_CHOICE"
-                            ? event.target.checked
-                              ? [...new Set([...current, choice.id])]
-                              : current.filter((id) => id !== choice.id)
-                            : [choice.id];
+                {question.choices.map((choice) => {
+                  const selected =
+                    answer.selectedChoiceIds?.includes(choice.id) ?? false;
 
-                        setAnswers((currentAnswers) => ({
-                          ...currentAnswers,
-                          [question.id]: {
-                            questionId: question.id,
-                            selectedChoiceIds,
-                          },
-                        }));
-                      }}
-                    />
-                    <span className="text-sm text-[#344054]">
-                      {choice.content}
-                    </span>
-                  </label>
-                ))}
+                  return (
+                    <label
+                      key={choice.id}
+                      className={`flex items-start gap-3 rounded-xl border p-3 ${
+                        latest?.publishedAt && choice.isCorrect === true
+                          ? "border-emerald-200 bg-emerald-50"
+                          : latest?.publishedAt &&
+                              choice.isCorrect === false &&
+                              selected
+                            ? "border-red-200 bg-red-50"
+                            : !editable && selected
+                              ? "border-blue-200 bg-blue-50"
+                              : "border-[#E4E7EC] bg-white"
+                      } ${editable ? "cursor-pointer hover:bg-[#F7F8FC]" : ""}`}
+                    >
+                      <input
+                        disabled={!editable}
+                        type={
+                          question.type === "MULTIPLE_CHOICE"
+                            ? "checkbox"
+                            : "radio"
+                        }
+                        name={question.id}
+                        checked={selected}
+                        onChange={(event) => {
+                          const current = answer.selectedChoiceIds ?? [];
+                          const selectedChoiceIds =
+                            question.type === "MULTIPLE_CHOICE"
+                              ? event.target.checked
+                                ? [...new Set([...current, choice.id])]
+                                : current.filter((id) => id !== choice.id)
+                              : [choice.id];
+
+                          setAnswers((currentAnswers) => ({
+                            ...currentAnswers,
+                            [question.id]: {
+                              questionId: question.id,
+                              selectedChoiceIds,
+                            },
+                          }));
+                        }}
+                      />
+
+                      <span className="text-sm text-[#344054]">
+                        {choice.content}
+                      </span>
+
+                      <span className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                        {!editable && selected ? (
+                          <span className="text-xs font-semibold text-[#4059A5]">
+                            Bạn đã chọn
+                          </span>
+                        ) : null}
+
+                        {latest?.publishedAt && choice.isCorrect === true ? (
+                          <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">
+                            Đáp án đúng
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
             ) : question.type === "FILE_UPLOAD" ? (
               <div className="mt-4">
