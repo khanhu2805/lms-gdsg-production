@@ -40,6 +40,18 @@ type Attempt = {
   answers: Answer[];
 };
 
+type AttemptOverview = {
+  latestAttempt: {
+    id: string;
+    attemptNumber: number;
+    status: string;
+    publishedAt?: string | null;
+  } | null;
+  attemptCount: number;
+  maxAttempts: number;
+  canStartNewAttempt: boolean;
+};
+
 type Envelope<T> =
   | { success: true; data: T }
   | { success: false; error: { message: string } };
@@ -80,6 +92,8 @@ export function StudentQuizPlayer({ quizId }: { quizId: string }) {
   const [answers, setAnswers] = useState<Record<string, Answer>>({});
   const [remaining, setRemaining] = useState<number>();
   const [busy, setBusy] = useState(false);
+  const [checkingAttempt, setCheckingAttempt] = useState(true);
+  const [overview, setOverview] = useState<AttemptOverview>();
   const [message, setMessage] = useState<string>();
   const [savedAt, setSavedAt] = useState<Date>();
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
@@ -113,6 +127,56 @@ export function StudentQuizPlayer({ quizId }: { quizId: string }) {
     hydrated.current = true;
   }, []);
 
+  const refreshOverview = useCallback(async () => {
+    const data = await api<AttemptOverview>(
+      `/api/v1/quizzes/${quizId}/attempts`,
+    );
+    setOverview(data);
+    return data;
+  }, [quizId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadExistingAttempt() {
+      setCheckingAttempt(true);
+      try {
+        const data = await api<AttemptOverview>(
+          `/api/v1/quizzes/${quizId}/attempts`,
+        );
+        if (cancelled) return;
+
+        setOverview(data);
+
+        if (data.latestAttempt) {
+          await loadAttempt(data.latestAttempt.id);
+          if (cancelled) return;
+
+          const refreshed = await api<AttemptOverview>(
+            `/api/v1/quizzes/${quizId}/attempts`,
+          );
+          if (!cancelled) setOverview(refreshed);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setMessage(
+            error instanceof Error
+              ? error.message
+              : "Không thể tải lượt làm bài gần nhất.",
+          );
+        }
+      } finally {
+        if (!cancelled) setCheckingAttempt(false);
+      }
+    }
+
+    void loadExistingAttempt();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loadAttempt, quizId]);
+
   async function start() {
     setBusy(true);
     setMessage(undefined);
@@ -122,6 +186,7 @@ export function StudentQuizPlayer({ quizId }: { quizId: string }) {
         { method: "POST" },
       );
       await loadAttempt(started.id);
+      await refreshOverview();
     } catch (error) {
       setMessage(
         error instanceof Error
@@ -209,6 +274,7 @@ export function StudentQuizPlayer({ quizId }: { quizId: string }) {
             : "Đã nộp bài kiểm tra.",
         );
         await loadAttempt(attempt.id);
+        await refreshOverview();
       } catch (error) {
         setMessage(
           error instanceof Error ? error.message : "Không thể nộp bài.",
@@ -218,7 +284,7 @@ export function StudentQuizPlayer({ quizId }: { quizId: string }) {
         setBusy(false);
       }
     },
-    [answers, attempt, loadAttempt, save],
+    [answers, attempt, loadAttempt, refreshOverview, save],
   );
 
   useEffect(() => {
@@ -262,6 +328,16 @@ export function StudentQuizPlayer({ quizId }: { quizId: string }) {
 
     return () => window.clearTimeout(timer);
   }, [attempt, remaining, submit]);
+
+  if (checkingAttempt) {
+    return (
+      <section className="rounded-2xl border border-[#E4E7EC] bg-white p-6">
+        <p className="text-sm text-[#667085]">
+          Đang tải bài kiểm tra…
+        </p>
+      </section>
+    );
+  }
 
   if (!attempt) {
     return (
@@ -341,6 +417,16 @@ export function StudentQuizPlayer({ quizId }: { quizId: string }) {
               className="min-h-10 rounded-xl bg-[#243467] px-4 text-sm font-semibold text-white disabled:opacity-60"
             >
               {busy ? "Đang nộp…" : "Nộp bài"}
+            </button>
+          ) : overview?.canStartNewAttempt ? (
+            <button
+              disabled={busy}
+              onClick={() => void start()}
+              className="min-h-10 rounded-xl bg-[#243467] px-4 text-sm font-semibold text-white disabled:opacity-60"
+            >
+              {busy
+                ? "Đang bắt đầu…"
+                : `Làm lượt tiếp theo (${overview.attemptCount + 1}/${overview.maxAttempts})`}
             </button>
           ) : null}
         </div>
@@ -445,50 +531,73 @@ export function StudentQuizPlayer({ quizId }: { quizId: string }) {
 
             {isObjectiveQuestion(question.type) ? (
               <div className="mt-4 space-y-2">
-                {question.choices.map((choice) => (
-                  <label
-                    key={choice.id}
-                    className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#E4E7EC] p-3 hover:bg-[#F7F8FC]"
-                  >
-                    <input
-                      disabled={!editable}
-                      type={
-                        question.type === "MULTIPLE_CHOICE"
-                          ? "checkbox"
-                          : "radio"
-                      }
-                      name={question.id}
-                      checked={
-                        answer.selectedChoiceIds?.includes(choice.id) ?? false
-                      }
-                      onChange={(event) => {
-                        const current = answer.selectedChoiceIds ?? [];
-                        const selectedChoiceIds =
-                          question.type === "MULTIPLE_CHOICE"
-                            ? event.target.checked
-                              ? [...new Set([...current, choice.id])]
-                              : current.filter((id) => id !== choice.id)
-                            : [choice.id];
+                {question.choices.map((choice) => {
+                  const selected =
+                    answer.selectedChoiceIds?.includes(choice.id) ?? false;
 
-                        setAnswers((currentAnswers) => ({
-                          ...currentAnswers,
-                          [question.id]: {
-                            questionId: question.id,
-                            selectedChoiceIds,
-                          },
-                        }));
-                      }}
-                    />
-                    <span className="text-sm text-[#344054]">
-                      {choice.content}
-                    </span>
-                    {choice.isCorrect === true ? (
-                      <span className="ml-auto text-xs font-semibold text-emerald-700">
-                        Đáp án đúng
+                  return (
+                    <label
+                      key={choice.id}
+                      className={`flex items-start gap-3 rounded-xl border p-3 ${
+                        choice.isCorrect === true
+                          ? "border-emerald-200 bg-emerald-50"
+                          : attempt.result &&
+                              choice.isCorrect === false &&
+                              selected
+                            ? "border-red-200 bg-red-50"
+                            : !editable && selected
+                              ? "border-blue-200 bg-blue-50"
+                              : "border-[#E4E7EC] bg-white"
+                      } ${editable ? "cursor-pointer hover:bg-[#F7F8FC]" : ""}`}
+                    >
+                      <input
+                        disabled={!editable}
+                        type={
+                          question.type === "MULTIPLE_CHOICE"
+                            ? "checkbox"
+                            : "radio"
+                        }
+                        name={question.id}
+                        checked={selected}
+                        onChange={(event) => {
+                          const current = answer.selectedChoiceIds ?? [];
+                          const selectedChoiceIds =
+                            question.type === "MULTIPLE_CHOICE"
+                              ? event.target.checked
+                                ? [...new Set([...current, choice.id])]
+                                : current.filter((id) => id !== choice.id)
+                              : [choice.id];
+
+                          setAnswers((currentAnswers) => ({
+                            ...currentAnswers,
+                            [question.id]: {
+                              questionId: question.id,
+                              selectedChoiceIds,
+                            },
+                          }));
+                        }}
+                      />
+
+                      <span className="text-sm text-[#344054]">
+                        {choice.content}
                       </span>
-                    ) : null}
-                  </label>
-                ))}
+
+                      <span className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                        {!editable && selected ? (
+                          <span className="text-xs font-semibold text-[#4059A5]">
+                            Bạn đã chọn
+                          </span>
+                        ) : null}
+
+                        {choice.isCorrect === true ? (
+                          <span className="rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">
+                            Đáp án đúng
+                          </span>
+                        ) : null}
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
             ) : (
               <textarea
