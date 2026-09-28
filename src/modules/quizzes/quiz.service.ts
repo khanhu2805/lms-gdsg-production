@@ -65,6 +65,50 @@ async function getAccessibleQuiz(actor: Actor, quizId: string) {
   return quiz;
 }
 
+export async function getLatestQuizAttemptForStudent(
+  actor: Actor,
+  quizId: string,
+) {
+  if (actor.role !== "STUDENT") {
+    throw new AppError("FORBIDDEN");
+  }
+
+  const quiz = await getAccessibleQuiz(actor, quizId);
+
+  const [latestAttempt, attemptCount] = await Promise.all([
+    prisma.quizAttempt.findFirst({
+      where: {
+        quizId,
+        studentId: actor.id,
+      },
+      orderBy: {
+        attemptNumber: "desc",
+      },
+      select: {
+        id: true,
+        attemptNumber: true,
+        status: true,
+        publishedAt: true,
+      },
+    }),
+    prisma.quizAttempt.count({
+      where: {
+        quizId,
+        studentId: actor.id,
+      },
+    }),
+  ]);
+
+  return {
+    latestAttempt,
+    attemptCount,
+    maxAttempts: quiz.maxAttempts,
+    canStartNewAttempt:
+      attemptCount < quiz.maxAttempts &&
+      latestAttempt?.status !== "IN_PROGRESS",
+  };
+}
+
 export async function startQuizAttempt(
   actor: Actor,
   quizId: string,
@@ -162,13 +206,14 @@ export async function getQuizAttemptForStudent(
     return getQuizAttemptForStudent(actor, attemptId);
   }
 
+  const now = new Date();
   const canSeeResult =
     Boolean(attempt.publishedAt) &&
-    (!attempt.quiz.showResultAt || attempt.quiz.showResultAt <= new Date());
+    (!attempt.quiz.showResultAt || attempt.quiz.showResultAt <= now);
   const canSeeCorrectAnswers =
     canSeeResult &&
-    Boolean(attempt.quiz.showCorrectAnswersAt) &&
-    attempt.quiz.showCorrectAnswersAt! <= new Date();
+    (!attempt.quiz.showCorrectAnswersAt ||
+      attempt.quiz.showCorrectAnswersAt <= now);
 
   return {
     id: attempt.id,
