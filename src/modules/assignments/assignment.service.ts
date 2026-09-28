@@ -73,6 +73,7 @@ export async function getStudentAssignment(actor: Actor, assignmentId: string) {
               id: true,
               content: true,
               order: true,
+              isCorrect: true,
             },
           },
         },
@@ -117,8 +118,27 @@ export async function getStudentAssignment(actor: Actor, assignmentId: string) {
     },
   });
   if (!assignment) throw new AppError("FORBIDDEN");
+
+  const latestSubmission = assignment.submissions[0];
+  const canSeeResult = Boolean(latestSubmission?.publishedAt);
+
   return {
     ...assignment,
+    questions: assignment.questions.map((question) => ({
+      id: question.id,
+      type: question.type,
+      content: question.content,
+      order: question.order,
+      score: question.score,
+      required: question.required,
+      explanation: canSeeResult ? question.explanation : null,
+      choices: question.choices.map((choice) => ({
+        id: choice.id,
+        content: choice.content,
+        order: choice.order,
+        ...(canSeeResult ? { isCorrect: choice.isCorrect } : {}),
+      })),
+    })),
     submissions: assignment.submissions.map((submission) => ({
       ...submission,
       files: submission.files.map(({ asset }) => ({
