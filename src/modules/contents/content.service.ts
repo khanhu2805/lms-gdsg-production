@@ -45,6 +45,9 @@ const contentRelations = {
   recording: true,
   assignment: {
     include: {
+      questionGroups: {
+        orderBy: { order: "asc" as const },
+      },
       questions: {
         orderBy: { order: "asc" as const },
         include: { choices: { orderBy: { order: "asc" as const } } },
@@ -53,6 +56,9 @@ const contentRelations = {
   },
   quiz: {
     include: {
+      questionGroups: {
+        orderBy: { order: "asc" as const },
+      },
       questions: {
         orderBy: { order: "asc" as const },
         include: { choices: { orderBy: { order: "asc" as const } } },
