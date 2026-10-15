@@ -115,6 +115,124 @@ function assertQuestionScore(
   }
 }
 
+
+type QuestionStructureInput = Pick<
+  Extract<CreateContentInput, { type: "ASSIGNMENT" }>["payload"],
+  "questionGroups" | "questions"
+>;
+
+async function createAssignmentQuestionStructure(
+  tx: TransactionClient,
+  assignmentId: string,
+  input: QuestionStructureInput,
+) {
+  const groupIdByKey = new Map<string, string>();
+
+  for (const group of [...input.questionGroups].sort(
+    (left, right) => left.order - right.order,
+  )) {
+    const created = await tx.assignmentQuestionGroup.create({
+      data: {
+        assignmentId,
+        title: group.title?.trim() || null,
+        content: group.content,
+        order: group.order,
+      },
+      select: { id: true },
+    });
+    groupIdByKey.set(group.key, created.id);
+  }
+
+  for (const question of [...input.questions].sort(
+    (left, right) => left.order - right.order,
+  )) {
+    const groupId = question.groupKey
+      ? groupIdByKey.get(question.groupKey)
+      : undefined;
+
+    if (question.groupKey && !groupId) {
+      throw new AppError("VALIDATION_ERROR", "Nhóm câu hỏi không hợp lệ.");
+    }
+
+    await tx.assignmentQuestion.create({
+      data: {
+        assignmentId,
+        groupId: groupId ?? null,
+        groupOrder: groupId ? (question.groupOrder ?? null) : null,
+        type: question.type,
+        content: question.content,
+        order: question.order,
+        score: question.score,
+        explanation: question.explanation,
+        required: question.required,
+        choices: {
+          create: question.choices.map((choice) => ({
+            content: choice.content,
+            isCorrect: choice.isCorrect,
+            order: choice.order,
+          })),
+        },
+      },
+    });
+  }
+}
+
+async function createQuizQuestionStructure(
+  tx: TransactionClient,
+  quizId: string,
+  input: QuestionStructureInput,
+) {
+  const groupIdByKey = new Map<string, string>();
+
+  for (const group of [...input.questionGroups].sort(
+    (left, right) => left.order - right.order,
+  )) {
+    const created = await tx.quizQuestionGroup.create({
+      data: {
+        quizId,
+        title: group.title?.trim() || null,
+        content: group.content,
+        order: group.order,
+      },
+      select: { id: true },
+    });
+    groupIdByKey.set(group.key, created.id);
+  }
+
+  for (const question of [...input.questions].sort(
+    (left, right) => left.order - right.order,
+  )) {
+    const groupId = question.groupKey
+      ? groupIdByKey.get(question.groupKey)
+      : undefined;
+
+    if (question.groupKey && !groupId) {
+      throw new AppError("VALIDATION_ERROR", "Nhóm câu hỏi không hợp lệ.");
+    }
+
+    await tx.quizQuestion.create({
+      data: {
+        quizId,
+        groupId: groupId ?? null,
+        groupOrder: groupId ? (question.groupOrder ?? null) : null,
+        type: question.type,
+        content: question.content,
+        order: question.order,
+        score: question.score,
+        explanation: question.explanation,
+        required: question.required,
+        choices: {
+          create: question.choices.map((choice) => ({
+            content: choice.content,
+            isCorrect: choice.isCorrect,
+            order: choice.order,
+          })),
+        },
+      },
+    });
+  }
+}
+
 async function purgeUnusedAsset(
   tx: TransactionClient,
   assetId: string | null | undefined,
@@ -705,8 +823,8 @@ export async function createContent(
         });
         break;
       }
-      case "ASSIGNMENT":
-        await tx.assignment.create({
+      case "ASSIGNMENT": {
+        const assignment = await tx.assignment.create({
           data: {
             contentId: content.id,
             opensAt: input.payload.opensAt,
@@ -714,28 +832,14 @@ export async function createContent(
             allowLateSubmission: input.payload.allowLateSubmission,
             maxAttempts: input.payload.maxAttempts,
             maxScore: input.payload.maxScore,
-            questions: {
-              create: input.payload.questions.map((question) => ({
-                type: question.type,
-                content: question.content,
-                order: question.order,
-                score: question.score,
-                explanation: question.explanation,
-                required: question.required,
-                choices: {
-                  create: question.choices.map((choice) => ({
-                    content: choice.content,
-                    isCorrect: choice.isCorrect,
-                    order: choice.order,
-                  })),
-                },
-              })),
-            },
           },
+          select: { id: true },
         });
+        await createAssignmentQuestionStructure(tx, assignment.id, input.payload);
         break;
-      case "QUIZ":
-        await tx.quiz.create({
+      }
+      case "QUIZ": {
+        const quiz = await tx.quiz.create({
           data: {
             contentId: content.id,
             opensAt: input.payload.opensAt,
@@ -747,26 +851,12 @@ export async function createContent(
             showResultAt: input.payload.showResultAt,
             showCorrectAnswersAt: input.payload.showCorrectAnswersAt,
             maxScore: input.payload.maxScore,
-            questions: {
-              create: input.payload.questions.map((question) => ({
-                type: question.type,
-                content: question.content,
-                order: question.order,
-                score: question.score,
-                explanation: question.explanation,
-                required: question.required,
-                choices: {
-                  create: question.choices.map((choice) => ({
-                    content: choice.content,
-                    isCorrect: choice.isCorrect,
-                    order: choice.order,
-                  })),
-                },
-              })),
-            },
           },
+          select: { id: true },
         });
+        await createQuizQuestionStructure(tx, quiz.id, input.payload);
         break;
+      }
     }
 
     await writeAuditLog(tx, {
@@ -801,6 +891,8 @@ export async function getContentDetail(actor: Actor, contentId: string) {
       type: question.type,
       content: question.content,
       order: question.order,
+      groupKey: question.groupId,
+      groupOrder: question.groupOrder,
       score: question.score,
       required: question.required,
       ...(!isLearner ? { explanation: question.explanation } : {}),
@@ -895,6 +987,12 @@ export async function getContentDetail(actor: Actor, contentId: string) {
                   allowLateSubmission: content.assignment.allowLateSubmission,
                   maxAttempts: content.assignment.maxAttempts,
                   maxScore: content.assignment.maxScore,
+                  questionGroups: content.assignment.questionGroups.map((group) => ({
+                    key: group.id,
+                    title: group.title,
+                    content: group.content,
+                    order: group.order,
+                  })),
                   questions: questions(content.assignment.questions),
                 }
               : content.type === "QUIZ" && content.quiz
@@ -908,6 +1006,12 @@ export async function getContentDetail(actor: Actor, contentId: string) {
                     showResultAt: content.quiz.showResultAt,
                     showCorrectAnswersAt: content.quiz.showCorrectAnswersAt,
                     maxScore: content.quiz.maxScore,
+                    questionGroups: content.quiz.questionGroups.map((group) => ({
+                      key: group.id,
+                      title: group.title,
+                      content: group.content,
+                      order: group.order,
+                    })),
                     questions: questions(content.quiz.questions),
                   }
                 : null,
@@ -1055,7 +1159,7 @@ export async function updateContent(
             "Không thể thay cấu trúc bài tập đã có lượt làm.",
           );
         }
-        await tx.assignment.update({
+        const assignment = await tx.assignment.update({
           where: { contentId },
           data: {
             opensAt: input.payload.opensAt,
@@ -1063,26 +1167,16 @@ export async function updateContent(
             allowLateSubmission: input.payload.allowLateSubmission,
             maxAttempts: input.payload.maxAttempts,
             maxScore: input.payload.maxScore,
-            questions: {
-              deleteMany: {},
-              create: input.payload.questions.map((question) => ({
-                type: question.type,
-                content: question.content,
-                order: question.order,
-                score: question.score,
-                explanation: question.explanation,
-                required: question.required,
-                choices: {
-                  create: question.choices.map((choice) => ({
-                    content: choice.content,
-                    isCorrect: choice.isCorrect,
-                    order: choice.order,
-                  })),
-                },
-              })),
-            },
           },
+          select: { id: true },
         });
+        await tx.assignmentQuestion.deleteMany({
+          where: { assignmentId: assignment.id },
+        });
+        await tx.assignmentQuestionGroup.deleteMany({
+          where: { assignmentId: assignment.id },
+        });
+        await createAssignmentQuestionStructure(tx, assignment.id, input.payload);
       } else {
         const attemptCount = await tx.quizAttempt.count({
           where: { quiz: { contentId } },
@@ -1093,7 +1187,7 @@ export async function updateContent(
             "Không thể thay cấu trúc quiz đã có lượt làm.",
           );
         }
-        await tx.quiz.update({
+        const quiz = await tx.quiz.update({
           where: { contentId },
           data: {
             opensAt: input.payload.opensAt,
@@ -1105,26 +1199,16 @@ export async function updateContent(
             showResultAt: input.payload.showResultAt,
             showCorrectAnswersAt: input.payload.showCorrectAnswersAt,
             maxScore: input.payload.maxScore,
-            questions: {
-              deleteMany: {},
-              create: input.payload.questions.map((question) => ({
-                type: question.type,
-                content: question.content,
-                order: question.order,
-                score: question.score,
-                explanation: question.explanation,
-                required: question.required,
-                choices: {
-                  create: question.choices.map((choice) => ({
-                    content: choice.content,
-                    isCorrect: choice.isCorrect,
-                    order: choice.order,
-                  })),
-                },
-              })),
-            },
           },
+          select: { id: true },
         });
+        await tx.quizQuestion.deleteMany({
+          where: { quizId: quiz.id },
+        });
+        await tx.quizQuestionGroup.deleteMany({
+          where: { quizId: quiz.id },
+        });
+        await createQuizQuestionStructure(tx, quiz.id, input.payload);
       }
 
       const updated = await tx.content.update({
@@ -1298,7 +1382,7 @@ async function cloneContentVersion(
   }
 
   if (source.assignment) {
-    await tx.assignment.create({
+    const assignment = await tx.assignment.create({
       data: {
         contentId: next.id,
         opensAt: source.assignment.opensAt,
@@ -1306,29 +1390,36 @@ async function cloneContentVersion(
         allowLateSubmission: source.assignment.allowLateSubmission,
         maxAttempts: source.assignment.maxAttempts,
         maxScore: source.assignment.maxScore,
-        questions: {
-          create: source.assignment.questions.map((question) => ({
-            type: question.type,
-            content: question.content,
-            order: question.order,
-            score: question.score,
-            explanation: question.explanation,
-            required: question.required,
-            choices: {
-              create: question.choices.map((choice) => ({
-                content: choice.content,
-                isCorrect: choice.isCorrect,
-                order: choice.order,
-              })),
-            },
-          })),
-        },
       },
+      select: { id: true },
+    });
+    await createAssignmentQuestionStructure(tx, assignment.id, {
+      questionGroups: source.assignment.questionGroups.map((group) => ({
+        key: group.id,
+        title: group.title ?? undefined,
+        content: group.content,
+        order: group.order,
+      })),
+      questions: source.assignment.questions.map((question) => ({
+        type: question.type,
+        content: question.content,
+        order: question.order,
+        groupKey: question.groupId,
+        groupOrder: question.groupOrder,
+        score: question.score.toNumber(),
+        explanation: question.explanation ?? undefined,
+        required: question.required,
+        choices: question.choices.map((choice) => ({
+          content: choice.content,
+          isCorrect: choice.isCorrect,
+          order: choice.order,
+        })),
+      })),
     });
   }
 
   if (source.quiz) {
-    await tx.quiz.create({
+    const quiz = await tx.quiz.create({
       data: {
         contentId: next.id,
         opensAt: source.quiz.opensAt,
@@ -1340,24 +1431,31 @@ async function cloneContentVersion(
         showResultAt: source.quiz.showResultAt,
         showCorrectAnswersAt: source.quiz.showCorrectAnswersAt,
         maxScore: source.quiz.maxScore,
-        questions: {
-          create: source.quiz.questions.map((question) => ({
-            type: question.type,
-            content: question.content,
-            order: question.order,
-            score: question.score,
-            explanation: question.explanation,
-            required: question.required,
-            choices: {
-              create: question.choices.map((choice) => ({
-                content: choice.content,
-                isCorrect: choice.isCorrect,
-                order: choice.order,
-              })),
-            },
-          })),
-        },
       },
+      select: { id: true },
+    });
+    await createQuizQuestionStructure(tx, quiz.id, {
+      questionGroups: source.quiz.questionGroups.map((group) => ({
+        key: group.id,
+        title: group.title ?? undefined,
+        content: group.content,
+        order: group.order,
+      })),
+      questions: source.quiz.questions.map((question) => ({
+        type: question.type,
+        content: question.content,
+        order: question.order,
+        groupKey: question.groupId,
+        groupOrder: question.groupOrder,
+        score: question.score.toNumber(),
+        explanation: question.explanation ?? undefined,
+        required: question.required,
+        choices: question.choices.map((choice) => ({
+          content: choice.content,
+          isCorrect: choice.isCorrect,
+          order: choice.order,
+        })),
+      })),
     });
   }
 
