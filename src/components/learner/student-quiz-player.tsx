@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { MarkdownContent } from "@/components/ui/markdown-content";
 
@@ -18,6 +25,8 @@ type Question = {
   type: string;
   content: string;
   order: number;
+  groupId?: string | null;
+  groupOrder?: number | null;
   score: number;
   required: boolean;
   explanation?: string | null;
@@ -38,6 +47,12 @@ type Attempt = {
   expiresAt: string;
   submittedAt?: string | null;
   result?: { finalScore?: number | null; maxScore: number } | null;
+  questionGroups: Array<{
+    id: string;
+    title?: string | null;
+    content: string;
+    order: number;
+  }>;
   questions: Question[];
   answers: Answer[];
 };
@@ -367,6 +382,9 @@ export function StudentQuizPlayer({ quizId }: { quizId: string }) {
   const answeredCount = attempt.questions.filter((question) =>
     isAnswered(question, answers[question.id]),
   ).length;
+  const questionGroupById = new Map(
+    attempt.questionGroups.map((group) => [group.id, group]),
+  );
 
   return (
     <section className="space-y-5">
@@ -484,10 +502,31 @@ export function StudentQuizPlayer({ quizId }: { quizId: string }) {
       {attempt.questions.map((question, index) => {
         const answer = answers[question.id] ?? { questionId: question.id };
         const review = reviewQuestionIds.has(question.id);
+        const group = question.groupId
+          ? questionGroupById.get(question.groupId)
+          : undefined;
+        const previousQuestion = attempt.questions[index - 1];
+        const showGroup =
+          Boolean(group) && previousQuestion?.groupId !== question.groupId;
+
         return (
+          <Fragment key={question.id}>
+            {showGroup && group ? (
+              <section className="rounded-2xl border border-[#C7D2FE] bg-[#F7F9FF] p-5 sm:p-6">
+                {group.title ? (
+                  <h2 className="text-base font-bold text-[#243467]">
+                    {group.title}
+                  </h2>
+                ) : null}
+                <MarkdownContent
+                  content={group.content}
+                  className={group.title ? "mt-3" : ""}
+                />
+              </section>
+            ) : null}
+
           <article
             id={`question-${question.id}`}
-            key={question.id}
             className="scroll-mt-36 rounded-2xl border border-[#E4E7EC] bg-white p-5 sm:p-6"
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -645,6 +684,7 @@ export function StudentQuizPlayer({ quizId }: { quizId: string }) {
               </div>
             ) : null}
           </article>
+          </Fragment>
         );
       })}
 
