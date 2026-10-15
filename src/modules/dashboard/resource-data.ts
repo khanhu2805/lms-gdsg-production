@@ -420,6 +420,9 @@ export async function loadResourcePageData(
                   },
                 },
               },
+              questionGroups: {
+                orderBy: { order: "asc" },
+              },
               questions: {
                 orderBy: { order: "asc" },
                 include: { choices: { orderBy: { order: "asc" } } },
@@ -465,6 +468,9 @@ export async function loadResourcePageData(
                 title: true,
                 courseClass: { select: { id: true, code: true, name: true } },
               },
+            },
+            questionGroups: {
+              orderBy: { order: "asc" },
             },
             questions: {
               orderBy: { order: "asc" },

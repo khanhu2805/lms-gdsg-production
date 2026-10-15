@@ -30,6 +30,53 @@ function deterministicRank(seed: string, value: string) {
     .readUInt32BE(0);
 }
 
+
+function orderQuestionBlocks<
+  T extends {
+    id: string;
+    order: number;
+    groupId?: string | null;
+    groupOrder?: number | null;
+  },
+>(questions: T[], seed: string, shuffle: boolean) {
+  const blocks = new Map<
+    string,
+    { key: string; order: number; questions: T[] }
+  >();
+
+  for (const question of [...questions].sort(
+    (left, right) => left.order - right.order,
+  )) {
+    const key = question.groupId
+      ? `group:${question.groupId}`
+      : `question:${question.id}`;
+    const current = blocks.get(key);
+    if (current) {
+      current.questions.push(question);
+      current.order = Math.min(current.order, question.order);
+    } else {
+      blocks.set(key, {
+        key,
+        order: question.order,
+        questions: [question],
+      });
+    }
+  }
+
+  const orderedBlocks = [...blocks.values()].sort((left, right) =>
+    shuffle
+      ? deterministicRank(seed, left.key) - deterministicRank(seed, right.key)
+      : left.order - right.order,
+  );
+
+  return orderedBlocks.flatMap((block) =>
+    block.questions.sort(
+      (left, right) =>
+        (left.groupOrder ?? left.order) - (right.groupOrder ?? right.order),
+    ),
+  );
+}
+
 function isObjectiveQuestion(type: string) {
   return [
     "SINGLE_CHOICE",
@@ -55,6 +102,7 @@ async function getAccessibleQuiz(actor: Actor, quizId: string) {
     },
     include: {
       content: { select: { classId: true, title: true, description: true } },
+      questionGroups: { orderBy: { order: "asc" } },
       questions: {
         orderBy: { order: "asc" },
         include: { choices: { orderBy: { order: "asc" } } },
@@ -191,6 +239,9 @@ export async function getQuizAttemptForStudent(
           content: {
             select: { title: true, description: true },
           },
+          questionGroups: {
+            orderBy: { order: "asc" },
+          },
           questions: {
             orderBy: { order: "asc" },
             include: { choices: { orderBy: { order: "asc" } } },
@@ -229,35 +280,40 @@ export async function getQuizAttemptForStudent(
           maxScore: attempt.quiz.maxScore,
         }
       : null,
-    questions: [...attempt.quiz.questions]
-      .sort((left, right) =>
-        attempt.quiz.shuffleQuestions
-          ? deterministicRank(attempt.id, left.id) -
-            deterministicRank(attempt.id, right.id)
-          : left.order - right.order,
-      )
-      .map((question) => ({
-        id: question.id,
-        type: question.type,
-        content: question.content,
-        order: question.order,
-        score: question.score,
-        required: question.required,
-        explanation: canSeeCorrectAnswers ? question.explanation : undefined,
-        choices: [...question.choices]
-          .sort((left, right) =>
-            attempt.quiz.shuffleChoices
-              ? deterministicRank(attempt.id, left.id) -
-                deterministicRank(attempt.id, right.id)
-              : left.order - right.order,
-          )
-          .map((choice) => ({
-            id: choice.id,
-            content: choice.content,
-            order: choice.order,
-            ...(canSeeCorrectAnswers ? { isCorrect: choice.isCorrect } : {}),
-          })),
-      })),
+    questionGroups: attempt.quiz.questionGroups.map((group) => ({
+      id: group.id,
+      title: group.title,
+      content: group.content,
+      order: group.order,
+    })),
+    questions: orderQuestionBlocks(
+      attempt.quiz.questions,
+      attempt.id,
+      attempt.quiz.shuffleQuestions,
+    ).map((question) => ({
+      id: question.id,
+      groupId: question.groupId,
+      groupOrder: question.groupOrder,
+      type: question.type,
+      content: question.content,
+      order: question.order,
+      score: question.score,
+      required: question.required,
+      explanation: canSeeCorrectAnswers ? question.explanation : undefined,
+      choices: [...question.choices]
+        .sort((left, right) =>
+          attempt.quiz.shuffleChoices
+            ? deterministicRank(attempt.id, left.id) -
+              deterministicRank(attempt.id, right.id)
+            : left.order - right.order,
+        )
+        .map((choice) => ({
+          id: choice.id,
+          content: choice.content,
+          order: choice.order,
+          ...(canSeeCorrectAnswers ? { isCorrect: choice.isCorrect } : {}),
+        })),
+    })),
     answers: attempt.answers.map((answer) => ({
       questionId: answer.questionId,
       answerText: answer.answerText,

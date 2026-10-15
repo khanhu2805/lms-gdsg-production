@@ -50,8 +50,15 @@ type EditorChoice = {
   isCorrect: boolean;
 };
 
+type EditorQuestionGroup = {
+  key: string;
+  title: string;
+  content: string;
+};
+
 type EditorQuestion = {
   key: string;
+  groupKey?: string | null;
   type: QuestionType;
   content: string;
   score: number;
@@ -84,10 +91,18 @@ type ContentPayload = {
   showResultAt?: string | null;
   showCorrectAnswersAt?: string | null;
   maxScore?: string | number;
+  questionGroups?: Array<{
+    key: string;
+    title?: string | null;
+    content: string;
+    order: number;
+  }>;
   questions?: Array<{
     id: string;
     type: QuestionType;
     content: string;
+    groupKey?: string | null;
+    groupOrder?: number | null;
     score: string | number;
     explanation?: string | null;
     required: boolean;
@@ -161,9 +176,14 @@ function localKey() {
   );
 }
 
-function emptyQuestion(quiz: boolean, deterministic = false): EditorQuestion {
+function emptyQuestion(
+  quiz: boolean,
+  deterministic = false,
+  groupKey?: string | null,
+): EditorQuestion {
   return {
     key: deterministic ? "question-1" : localKey(),
+    groupKey: groupKey ?? null,
     type: quiz ? "SINGLE_CHOICE" : "SHORT_ANSWER",
     content: "",
     score: 10,
@@ -191,6 +211,7 @@ function initialQuestions(content: ContentDetail | null, type: ContentType) {
   if (source?.length) {
     return source.map((question) => ({
       key: question.id,
+      groupKey: question.groupKey ?? null,
       type: question.type,
       content: question.content,
       score: Number(question.score),
@@ -206,6 +227,15 @@ function initialQuestions(content: ContentDetail | null, type: ContentType) {
   return type === "ASSIGNMENT" || type === "QUIZ"
     ? [emptyQuestion(type === "QUIZ", true)]
     : [];
+}
+
+
+function initialQuestionGroups(content: ContentDetail | null): EditorQuestionGroup[] {
+  return (content?.payload.questionGroups ?? []).map((group) => ({
+    key: group.key,
+    title: group.title ?? "",
+    content: group.content,
+  }));
 }
 
 function cleanHeaderFileName(name: string) {
@@ -325,6 +355,9 @@ export function ContentEditor({
   const [questions, setQuestions] = useState<EditorQuestion[]>(() =>
     initialQuestions(content, content?.type ?? normalizedDefaultType),
   );
+  const [questionGroups, setQuestionGroups] = useState<EditorQuestionGroup[]>(
+    () => initialQuestionGroups(content),
+  );
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{
     message: string;
@@ -427,10 +460,21 @@ export function ContentEditor({
   }
 
   function questionPayload() {
-    return questions.map((question, index) => ({
+    const groupCounters = new Map<string, number>();
+
+    return questions.map((question, index) => {
+      const groupKey = question.groupKey || undefined;
+      const groupOrder = groupKey
+        ? (groupCounters.get(groupKey) ?? 0) + 1
+        : undefined;
+      if (groupKey && groupOrder) groupCounters.set(groupKey, groupOrder);
+
+      return {
       type: question.type,
       content: question.content,
       order: index + 1,
+      groupKey,
+      groupOrder,
       score: Number(question.score),
       explanation: question.explanation.trim() || undefined,
       required: question.required,
@@ -439,6 +483,16 @@ export function ContentEditor({
         isCorrect: choice.isCorrect,
         order: choiceIndex + 1,
       })),
+      };
+    });
+  }
+
+  function questionGroupPayload() {
+    return questionGroups.map((group, index) => ({
+      key: group.key,
+      title: group.title.trim() || undefined,
+      content: group.content,
+      order: index + 1,
     }));
   }
 
@@ -500,6 +554,7 @@ export function ContentEditor({
           allowLateSubmission: formData.get("allowLateSubmission") === "on",
           maxAttempts: Number(formData.get("maxAttempts")),
           maxScore,
+          questionGroups: questionGroupPayload(),
           questions: questionPayload(),
         };
       } else {
@@ -521,6 +576,7 @@ export function ContentEditor({
             optionalIsoDate(formData.get("showCorrectAnswersAt")) ??
             (content ? null : undefined),
           maxScore,
+          questionGroups: questionGroupPayload(),
           questions: questionPayload(),
         };
       }
@@ -900,6 +956,109 @@ export function ContentEditor({
             </Field>
           </div>
         ) : null}
+        <div className="space-y-3 rounded-2xl border border-[#D9E0F2] bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold text-[#172033]">
+                Đề chung / nhóm câu hỏi
+              </p>
+              <p className="mt-1 text-xs text-[#667085]">
+                Dùng cho đoạn văn, dữ kiện, hình hoặc yêu cầu chung áp dụng cho nhiều câu nhỏ.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() =>
+                setQuestionGroups((current) => [
+                  ...current,
+                  { key: localKey(), title: "", content: "" },
+                ])
+              }
+              className={SECONDARY_BUTTON}
+            >
+              <Plus className="mr-2 size-4" />
+              Thêm đề chung
+            </button>
+          </div>
+
+          {questionGroups.map((group, groupIndex) => (
+            <div
+              key={group.key}
+              className="rounded-xl border border-[#E4E7EC] bg-[#F9FAFB] p-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1">
+                  <Field label={`Tên nhóm ${groupIndex + 1}`}>
+                    <input
+                      value={group.title}
+                      onChange={(event) =>
+                        setQuestionGroups((current) =>
+                          current.map((item) =>
+                            item.key === group.key
+                              ? { ...item, title: event.target.value }
+                              : item,
+                          ),
+                        )
+                      }
+                      placeholder="Ví dụ: Đọc đoạn văn và trả lời câu 1–4"
+                      className={INPUT_CLASS}
+                    />
+                  </Field>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQuestionGroups((current) =>
+                      current.filter((item) => item.key !== group.key),
+                    );
+                    setQuestions((current) =>
+                      current.map((question) =>
+                        question.groupKey === group.key
+                          ? { ...question, groupKey: null }
+                          : question,
+                      ),
+                    );
+                  }}
+                  className="mt-7 rounded-lg p-2 text-red-700 hover:bg-red-50"
+                  aria-label="Xóa đề chung"
+                >
+                  <Trash2 className="size-4" />
+                </button>
+              </div>
+
+              <Field label="Nội dung đề chung" required className="mt-4">
+                <MarkdownEditor
+                  value={group.content}
+                  onChange={(content) =>
+                    setQuestionGroups((current) =>
+                      current.map((item) =>
+                        item.key === group.key ? { ...item, content } : item,
+                      ),
+                    )
+                  }
+                  required
+                  rows={6}
+                  placeholder="Nhập đoạn văn, dữ kiện, công thức hoặc yêu cầu chung..."
+                />
+              </Field>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setQuestions((current) => [
+                    ...current,
+                    emptyQuestion(quiz, false, group.key),
+                  ])
+                }
+                className={`${SECONDARY_BUTTON} mt-4`}
+              >
+                <Plus className="mr-2 size-4" />
+                Thêm câu hỏi vào nhóm
+              </button>
+            </div>
+          ))}
+        </div>
+
         <div className="rounded-xl border border-[#D9E0F2] bg-[#F7F9FF] p-4">
           <p className="text-sm font-semibold text-[#243467]">
             Tổng điểm tối đa: {maxScore}
@@ -933,6 +1092,28 @@ export function ContentEditor({
                   </button>
                 ) : null}
               </div>
+
+              {questionGroups.length ? (
+                <Field label="Thuộc đề chung" className="mt-4">
+                  <select
+                    value={question.groupKey ?? ""}
+                    onChange={(event) =>
+                      updateQuestion(questionIndex, {
+                        groupKey: event.target.value || null,
+                      })
+                    }
+                    className={INPUT_CLASS}
+                  >
+                    <option value="">Câu hỏi độc lập</option>
+                    {questionGroups.map((group, index) => (
+                      <option key={group.key} value={group.key}>
+                        {group.title.trim() || `Đề chung ${index + 1}`}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              ) : null}
+
               <div className="mt-4 grid gap-4 sm:grid-cols-3">
                 <Field label="Loại câu hỏi" required>
                   <select
@@ -1127,6 +1308,7 @@ export function ContentEditor({
               const next = event.target.value as ContentType;
               setType(next);
               setQuestions(initialQuestions(null, next));
+              setQuestionGroups([]);
             }}
             className={INPUT_CLASS}
           >

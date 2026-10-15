@@ -718,7 +718,8 @@ model Assignment {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  content     Content              @relation(fields: [contentId], references: [id], onDelete: Restrict)
+  content     Content                   @relation(fields: [contentId], references: [id], onDelete: Restrict)
+  questionGroups AssignmentQuestionGroup[]
   questions   AssignmentQuestion[]
   submissions Submission[]
 
@@ -726,9 +727,27 @@ model Assignment {
   @@map("assignments")
 }
 
+model AssignmentQuestionGroup {
+  id           String   @id @default(uuid()) @db.Uuid
+  assignmentId String   @db.Uuid
+  title        String?
+  content      String   @db.Text
+  order        Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assignment Assignment           @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  questions  AssignmentQuestion[]
+
+  @@unique([assignmentId, order])
+  @@map("assignment_question_groups")
+}
+
 model AssignmentQuestion {
   id           String       @id @default(uuid()) @db.Uuid
   assignmentId String       @db.Uuid
+  groupId      String?      @db.Uuid
+  groupOrder   Int?
   type         QuestionType
   content      String       @db.Text
   order        Int
@@ -738,11 +757,14 @@ model AssignmentQuestion {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
-  assignment Assignment         @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignment Assignment                @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  group      AssignmentQuestionGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
   choices    AssignmentChoice[]
   answers    SubmissionAnswer[]
 
   @@unique([assignmentId, order])
+  @@unique([groupId, groupOrder])
+  @@index([groupId])
   @@map("assignment_questions")
 }
 
@@ -843,17 +865,36 @@ model Quiz {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  content   Content        @relation(fields: [contentId], references: [id], onDelete: Restrict)
-  questions QuizQuestion[]
-  attempts  QuizAttempt[]
+  content        Content             @relation(fields: [contentId], references: [id], onDelete: Restrict)
+  questionGroups QuizQuestionGroup[]
+  questions      QuizQuestion[]
+  attempts       QuizAttempt[]
 
   @@index([opensAt, closesAt])
   @@map("quizzes")
 }
 
+model QuizQuestionGroup {
+  id        String   @id @default(uuid()) @db.Uuid
+  quizId    String   @db.Uuid
+  title     String?
+  content   String   @db.Text
+  order     Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  quiz      Quiz           @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  questions QuizQuestion[]
+
+  @@unique([quizId, order])
+  @@map("quiz_question_groups")
+}
+
 model QuizQuestion {
   id          String       @id @default(uuid()) @db.Uuid
   quizId      String       @db.Uuid
+  groupId     String?      @db.Uuid
+  groupOrder  Int?
   type        QuestionType
   content     String       @db.Text
   order       Int
@@ -863,11 +904,14 @@ model QuizQuestion {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
-  quiz    Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  quiz    Quiz               @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  group   QuizQuestionGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
   choices QuizChoice[]
   answers QuizAnswer[]
 
   @@unique([quizId, order])
+  @@unique([groupId, groupOrder])
+  @@index([groupId])
   @@map("quiz_questions")
 }
 

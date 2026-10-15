@@ -30,6 +30,13 @@ const choiceSchema = z.object({
   order: z.number().int().min(1),
 });
 
+const questionGroupSchema = z.object({
+  key: z.string().trim().min(1).max(100),
+  title: z.string().trim().max(500).optional(),
+  content: z.string().trim().min(1).max(50_000),
+  order: z.number().int().min(1),
+});
+
 const questionSchema = z
   .object({
     type: z.enum([
@@ -42,6 +49,8 @@ const questionSchema = z
     ]),
     content: z.string().trim().min(1).max(20_000),
     order: z.number().int().min(1),
+    groupKey: z.string().trim().min(1).max(100).nullable().optional(),
+    groupOrder: z.number().int().min(1).nullable().optional(),
     score: z.number().min(0).max(10_000),
     explanation: z.string().trim().max(20_000).optional(),
     required: z.boolean().default(true),
@@ -103,8 +112,18 @@ const questionSchema = z
     }
   });
 
-function uniqueQuestionOrder(
-  value: { questions: Array<{ order: number }> },
+function validateQuestionStructure(
+  value: {
+    questions: Array<{
+      order: number;
+      groupKey?: string | null;
+      groupOrder?: number | null;
+    }>;
+    questionGroups: Array<{
+      key: string;
+      order: number;
+    }>;
+  },
   context: z.RefinementCtx,
 ) {
   const orders = value.questions.map((question) => question.order);
@@ -114,6 +133,76 @@ function uniqueQuestionOrder(
       path: ["questions"],
       message: "Thứ tự câu hỏi không được trùng.",
     });
+  }
+
+  const groupKeys = value.questionGroups.map((group) => group.key);
+  if (new Set(groupKeys).size !== groupKeys.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["questionGroups"],
+      message: "Mã nhóm câu hỏi không được trùng.",
+    });
+  }
+
+  const groupOrders = value.questionGroups.map((group) => group.order);
+  if (new Set(groupOrders).size !== groupOrders.length) {
+    context.addIssue({
+      code: "custom",
+      path: ["questionGroups"],
+      message: "Thứ tự nhóm câu hỏi không được trùng.",
+    });
+  }
+
+  const validGroupKeys = new Set(groupKeys);
+  const groupedOrders = new Map<string, Set<number>>();
+
+  for (const [index, question] of value.questions.entries()) {
+    if (question.groupKey) {
+      if (!validGroupKeys.has(question.groupKey)) {
+        context.addIssue({
+          code: "custom",
+          path: ["questions", index, "groupKey"],
+          message: "Nhóm câu hỏi không tồn tại.",
+        });
+        continue;
+      }
+
+      if (!question.groupOrder) {
+        context.addIssue({
+          code: "custom",
+          path: ["questions", index, "groupOrder"],
+          message: "Câu hỏi trong nhóm phải có thứ tự trong nhóm.",
+        });
+        continue;
+      }
+
+      const used = groupedOrders.get(question.groupKey) ?? new Set<number>();
+      if (used.has(question.groupOrder)) {
+        context.addIssue({
+          code: "custom",
+          path: ["questions", index, "groupOrder"],
+          message: "Thứ tự câu hỏi trong cùng nhóm không được trùng.",
+        });
+      }
+      used.add(question.groupOrder);
+      groupedOrders.set(question.groupKey, used);
+    } else if (question.groupOrder) {
+      context.addIssue({
+        code: "custom",
+        path: ["questions", index, "groupOrder"],
+        message: "Câu hỏi độc lập không được có thứ tự nhóm.",
+      });
+    }
+  }
+
+  for (const [index, group] of value.questionGroups.entries()) {
+    if (!value.questions.some((question) => question.groupKey === group.key)) {
+      context.addIssue({
+        code: "custom",
+        path: ["questionGroups", index],
+        message: "Mỗi đề chung phải có ít nhất một câu hỏi nhỏ.",
+      });
+    }
   }
 }
 
@@ -148,6 +237,7 @@ export const createContentSchema = z.discriminatedUnion("type", [
         allowLateSubmission: z.boolean().default(false),
         maxAttempts: z.number().int().min(1).max(20).default(1),
         maxScore: z.number().min(0).max(100_000),
+        questionGroups: z.array(questionGroupSchema).max(100).default([]),
         questions: z.array(questionSchema).min(1).max(200),
       })
       .refine(
@@ -158,7 +248,7 @@ export const createContentSchema = z.discriminatedUnion("type", [
           message: "Hạn nộp phải sau thời điểm mở.",
         },
       )
-      .superRefine(uniqueQuestionOrder),
+      .superRefine(validateQuestionStructure),
   }),
   contentBase.extend({
     type: z.literal("QUIZ"),
@@ -173,6 +263,7 @@ export const createContentSchema = z.discriminatedUnion("type", [
         showResultAt: z.coerce.date().nullable().optional(),
         showCorrectAnswersAt: z.coerce.date().nullable().optional(),
         maxScore: z.number().min(0).max(100_000),
+        questionGroups: z.array(questionGroupSchema).max(100).default([]),
         questions: z.array(questionSchema).min(1).max(200),
       })
       .refine(
@@ -184,7 +275,7 @@ export const createContentSchema = z.discriminatedUnion("type", [
         },
       )
       .superRefine((value, context) => {
-        uniqueQuestionOrder(value, context);
+        validateQuestionStructure(value, context);
         if (
           value.questions.some((question) => question.type === "FILE_UPLOAD")
         ) {

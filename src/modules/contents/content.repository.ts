@@ -32,6 +32,9 @@ export function findContentForWorkflow(contentId: string) {
       },
       assignment: {
         include: {
+          questionGroups: {
+            orderBy: { order: "asc" },
+          },
           questions: {
             orderBy: { order: "asc" },
             include: { choices: { orderBy: { order: "asc" } } },
@@ -40,6 +43,9 @@ export function findContentForWorkflow(contentId: string) {
       },
       quiz: {
         include: {
+          questionGroups: {
+            orderBy: { order: "asc" },
+          },
           questions: {
             orderBy: { order: "asc" },
             include: { choices: { orderBy: { order: "asc" } } },
