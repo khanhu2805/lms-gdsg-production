@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionDialogs } from "@/components/ui/action-dialogs";
+import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import {
   Archive,
   Check,
@@ -977,27 +978,35 @@ export function ContentEditor({
                   Bắt buộc trả lời
                 </label>
               </div>
-              <Field label="Nội dung câu hỏi" required className="mt-4">
-                <textarea
+              <Field
+                label="Nội dung câu hỏi"
+                hint="Hỗ trợ in đậm, in nghiêng, xuống dòng, danh sách và công thức."
+                required
+                className="mt-4"
+              >
+                <MarkdownEditor
                   value={question.content}
-                  onChange={(event) =>
-                    updateQuestion(questionIndex, {
-                      content: event.target.value,
-                    })
+                  onChange={(content) =>
+                    updateQuestion(questionIndex, { content })
                   }
                   required
-                  className={TEXTAREA_CLASS}
+                  rows={6}
+                  placeholder="Nhập nội dung câu hỏi..."
                 />
               </Field>
-              <Field label="Giải thích đáp án" className="mt-4">
-                <textarea
+
+              <Field
+                label="Giải thích / hướng dẫn đáp án"
+                hint="Nội dung này chỉ hiển thị cho học sinh khi đến thời điểm công bố đáp án."
+                className="mt-4"
+              >
+                <MarkdownEditor
                   value={question.explanation}
-                  onChange={(event) =>
-                    updateQuestion(questionIndex, {
-                      explanation: event.target.value,
-                    })
+                  onChange={(explanation) =>
+                    updateQuestion(questionIndex, { explanation })
                   }
-                  className={TEXTAREA_CLASS}
+                  rows={4}
+                  placeholder="Nhập lời giải hoặc hướng dẫn chấm..."
                 />
               </Field>
               {question.choices.length ? (
@@ -1030,17 +1039,20 @@ export function ContentEditor({
                         }
                         className="size-4"
                       />
-                      <input
-                        value={choice.content}
-                        onChange={(event) =>
-                          updateChoice(questionIndex, choiceIndex, {
-                            content: event.target.value,
-                          })
-                        }
-                        required
-                        placeholder={`Lựa chọn ${choiceIndex + 1}`}
-                        className={`${INPUT_CLASS} mt-0`}
-                      />
+                      <div className="min-w-0 flex-1">
+                        <MarkdownEditor
+                          value={choice.content}
+                          onChange={(content) =>
+                            updateChoice(questionIndex, choiceIndex, {
+                              content,
+                            })
+                          }
+                          required
+                          compact
+                          rows={2}
+                          placeholder={`Lựa chọn ${choiceIndex + 1}`}
+                        />
+                      </div>
                       {question.choices.length > 2 ? (
                         <button
                           type="button"
