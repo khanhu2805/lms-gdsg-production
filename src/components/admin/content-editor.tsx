@@ -232,7 +232,7 @@ function availableWorkflowActions(
       actions.push("PUBLISH");
     }
     if (status === "REOPEN_REQUESTED") actions.push("REOPEN", "REJECT_REOPEN");
-    if (status === "PUBLISHED") actions.push("HIDE");
+    if (status === "PUBLISHED") actions.push("REOPEN", "HIDE");
     if (!["PUBLISHED", "ARCHIVED"].includes(status)) actions.push("ARCHIVE");
     return actions;
   }
@@ -563,6 +563,10 @@ export function ContentEditor({
 
   async function workflow(action: WorkflowAction) {
     if (!content) return;
+    const actionText =
+      action === "REOPEN" && content.publicationStatus === "PUBLISHED"
+        ? "Tạo bản chỉnh sửa"
+        : actionLabel(action);
     const requiresComment = ["REQUEST_CHANGES", "REJECT"].includes(action);
     const requiresReason = [
       "REQUEST_REOPEN",
@@ -576,9 +580,9 @@ export function ContentEditor({
         ? await requestReason({
           title: requiresComment
             ? "Nhận xét duyệt nội dung"
-            : actionLabel(action),
+            : actionText,
           label: requiresComment ? "Nhận xét" : "Lý do",
-          confirmLabel: actionLabel(action),
+          confirmLabel: actionText,
           danger: ["REJECT", "REJECT_REOPEN", "HIDE", "ARCHIVE"].includes(action),
         })
         : undefined;
@@ -598,7 +602,7 @@ export function ContentEditor({
         },
       );
       setNotice({
-        message: `Đã ${actionLabel(action).toLowerCase()} nội dung.`,
+        message: `Đã ${actionText.toLowerCase()} nội dung.`,
         tone: "success",
       });
       if (action === "REOPEN" && updated.id !== content.id) {
@@ -1369,7 +1373,10 @@ export function ContentEditor({
                   className={danger ? DANGER_BUTTON : PRIMARY_BUTTON}
                 >
                   <Icon className="mr-2 size-4" />
-                  {actionLabel(action)}
+                  {action === "REOPEN" &&
+                  content.publicationStatus === "PUBLISHED"
+                    ? "Tạo bản chỉnh sửa"
+                    : actionLabel(action)}
                 </button>
               );
             })}
