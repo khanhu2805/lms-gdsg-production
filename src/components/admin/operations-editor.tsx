@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionDialogs } from "@/components/ui/action-dialogs";
@@ -73,6 +73,12 @@ type GradingSubmission = {
   };
   assignment: {
     maxScore: string | number;
+    questionGroups: Array<{
+      id: string;
+      title?: string | null;
+      content: string;
+      order: number;
+    }>;
     content: {
       id: string;
       title: string;
@@ -81,6 +87,8 @@ type GradingSubmission = {
     questions: Array<{
       id: string;
       order: number;
+      groupId?: string | null;
+      groupOrder?: number | null;
       type: string;
       content: string;
       score: string | number;
@@ -128,6 +136,12 @@ type QuizGradingAttempt = {
   };
   quiz: {
     maxScore: string | number;
+    questionGroups: Array<{
+      id: string;
+      title?: string | null;
+      content: string;
+      order: number;
+    }>;
     content: {
       id: string;
       title: string;
@@ -136,6 +150,8 @@ type QuizGradingAttempt = {
     questions: Array<{
       id: string;
       order: number;
+      groupId?: string | null;
+      groupOrder?: number | null;
       type: string;
       content: string;
       score: string | number;
@@ -494,14 +510,34 @@ function AssignmentGradingEditor({
 
       <SectionCard title="Câu trả lời và chấm điểm">
         <div className="space-y-4">
-          {submission.assignment.questions.map((question) => {
+          {submission.assignment.questions.map((question, index) => {
             const answer = answerByQuestion.get(question.id);
             const selected = new Set(answer?.selectedChoiceIds ?? []);
             const objective = isObjectiveQuestion(question.type);
+            const group = question.groupId
+              ? submission.assignment.questionGroups.find(
+                  (item) => item.id === question.groupId,
+                )
+              : undefined;
+            const previousQuestion = submission.assignment.questions[index - 1];
+            const showGroup =
+              Boolean(group) && previousQuestion?.groupId !== question.groupId;
 
             return (
+              <Fragment key={question.id}>
+                {showGroup && group ? (
+                  <div className="rounded-xl border border-[#C7D2FE] bg-[#F7F9FF] p-4">
+                    {group.title ? (
+                      <p className="font-semibold text-[#243467]">{group.title}</p>
+                    ) : null}
+                    <MarkdownContent
+                      content={group.content}
+                      className={group.title ? "mt-2" : ""}
+                    />
+                  </div>
+                ) : null}
+
               <article
-                key={question.id}
                 className="rounded-xl border border-[#E4E7EC] p-4"
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
@@ -609,6 +645,7 @@ function AssignmentGradingEditor({
                   </p>
                 )}
               </article>
+              </Fragment>
             );
           })}
         </div>
@@ -888,7 +925,7 @@ function QuizGradingEditor({
 
       <SectionCard title="Câu trả lời và chấm điểm">
         <div className="space-y-4">
-          {attempt.quiz.questions.map((question) => {
+          {attempt.quiz.questions.map((question, index) => {
             const answer = answerByQuestion.get(question.id);
             const selected = new Set(
               Array.isArray(answer?.selectedChoiceIds)
@@ -896,10 +933,30 @@ function QuizGradingEditor({
                 : [],
             );
             const objective = isObjectiveQuestion(question.type);
+            const group = question.groupId
+              ? attempt.quiz.questionGroups.find(
+                  (item) => item.id === question.groupId,
+                )
+              : undefined;
+            const previousQuestion = attempt.quiz.questions[index - 1];
+            const showGroup =
+              Boolean(group) && previousQuestion?.groupId !== question.groupId;
 
             return (
+              <Fragment key={question.id}>
+                {showGroup && group ? (
+                  <div className="rounded-xl border border-[#C7D2FE] bg-[#F7F9FF] p-4">
+                    {group.title ? (
+                      <p className="font-semibold text-[#243467]">{group.title}</p>
+                    ) : null}
+                    <MarkdownContent
+                      content={group.content}
+                      className={group.title ? "mt-2" : ""}
+                    />
+                  </div>
+                ) : null}
+
               <article
-                key={question.id}
                 className="rounded-xl border border-[#E4E7EC] p-4"
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
@@ -1007,6 +1064,7 @@ function QuizGradingEditor({
                   </p>
                 )}
               </article>
+              </Fragment>
             );
           })}
         </div>
