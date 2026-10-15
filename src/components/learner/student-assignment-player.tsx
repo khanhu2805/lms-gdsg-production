@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { MarkdownContent } from "@/components/ui/markdown-content";
+
 type Answer = {
   questionId: string;
   answerText?: string | null;
@@ -307,15 +309,18 @@ export function StudentAssignmentPlayer({
             className="rounded-2xl border border-[#E4E7EC] bg-white p-5 sm:p-6"
           >
             <div className="flex items-start justify-between gap-4">
-              <h2 className="font-semibold text-[#172033]">
-                Câu {index + 1}. {question.content}
-                {question.required ? (
-                  <span className="text-red-600"> *</span>
-                ) : null}
-              </h2>
-              <span className="text-xs font-semibold text-[#667085]">
-                {question.score} điểm
-              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#667085]">
+                  Câu {index + 1} · {question.score} điểm
+                  {question.required ? (
+                    <span className="text-red-600"> · Bắt buộc</span>
+                  ) : null}
+                </p>
+                <MarkdownContent
+                  content={question.content}
+                  className="mt-1 font-semibold text-[#172033] [&_p]:my-0"
+                />
+              </div>
             </div>
 
             {isObjectiveQuestion(question.type) ? (
@@ -367,9 +372,10 @@ export function StudentAssignmentPlayer({
                         }}
                       />
 
-                      <span className="text-sm text-[#344054]">
-                        {choice.content}
-                      </span>
+                      <MarkdownContent
+                        content={choice.content}
+                        className="min-w-0 flex-1 [&_p]:my-0"
+                      />
 
                       <span className="ml-auto flex flex-wrap items-center justify-end gap-2">
                         {!editable && selected ? (
@@ -434,9 +440,12 @@ export function StudentAssignmentPlayer({
                   </p>
                 ) : null}
                 {question.explanation ? (
-                  <p className="mt-2 text-[#667085]">
-                    Giải thích: {question.explanation}
-                  </p>
+                  <div className="mt-3 border-t border-[#E4E7EC] pt-3">
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#667085]">
+                      Giải thích / hướng dẫn
+                    </p>
+                    <MarkdownContent content={question.explanation} />
+                  </div>
                 ) : null}
               </div>
             ) : null}

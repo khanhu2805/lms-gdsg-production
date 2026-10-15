@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionDialogs } from "@/components/ui/action-dialogs";
+import { MarkdownContent } from "@/components/ui/markdown-content";
 import { Download, Play, Save, Send } from "lucide-react";
 
 import type { ResourceOption } from "@/modules/dashboard/resource-data";
@@ -518,9 +519,10 @@ function AssignmentGradingEditor({
                   )}
                 </div>
 
-                <p className="mt-2 text-sm whitespace-pre-wrap text-[#344054]">
-                  {question.content}
-                </p>
+                <MarkdownContent
+                  content={question.content}
+                  className="mt-2"
+                />
 
                 {question.choices.length ? (
                   <div className="mt-3 space-y-2">
@@ -533,9 +535,22 @@ function AssignmentGradingEditor({
                             : "bg-[#F9FAFB] text-[#475467]"
                         }`}
                       >
-                        {selected.has(choice.id) ? "✓ Học sinh chọn · " : ""}
-                        {choice.content}
-                        {choice.isCorrect ? " · Đáp án đúng" : ""}
+                        <div className="flex min-w-0 items-start gap-2">
+                          {selected.has(choice.id) ? (
+                            <span className="shrink-0 font-semibold">
+                              ✓ Học sinh chọn
+                            </span>
+                          ) : null}
+                          <MarkdownContent
+                            content={choice.content}
+                            className="min-w-0 flex-1 [&_p]:my-0"
+                          />
+                          {choice.isCorrect ? (
+                            <span className="shrink-0 font-semibold text-emerald-700">
+                              Đáp án đúng
+                            </span>
+                          ) : null}
+                        </div>
                       </p>
                     ))}
                   </div>
@@ -546,9 +561,15 @@ function AssignmentGradingEditor({
                 )}
 
                 {question.explanation ? (
-                  <p className="mt-3 rounded-lg bg-blue-50/60 p-3 text-xs text-[#475467]">
-                    Hướng dẫn / đáp án: {question.explanation}
-                  </p>
+                  <div className="mt-3 rounded-lg bg-blue-50/60 p-3">
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#667085]">
+                      Hướng dẫn / đáp án
+                    </p>
+                    <MarkdownContent
+                      content={question.explanation}
+                      className="text-xs"
+                    />
+                  </div>
                 ) : null}
 
                 {objective ? (
@@ -896,9 +917,10 @@ function QuizGradingEditor({
                   )}
                 </div>
 
-                <p className="mt-2 text-sm whitespace-pre-wrap text-[#344054]">
-                  {question.content}
-                </p>
+                <MarkdownContent
+                  content={question.content}
+                  className="mt-2"
+                />
 
                 {question.choices.length ? (
                   <div className="mt-3 space-y-2">
@@ -911,9 +933,22 @@ function QuizGradingEditor({
                             : "bg-[#F9FAFB] text-[#475467]"
                         }`}
                       >
-                        {selected.has(choice.id) ? "✓ Học sinh chọn · " : ""}
-                        {choice.content}
-                        {choice.isCorrect ? " · Đáp án đúng" : ""}
+                        <div className="flex min-w-0 items-start gap-2">
+                          {selected.has(choice.id) ? (
+                            <span className="shrink-0 font-semibold">
+                              ✓ Học sinh chọn
+                            </span>
+                          ) : null}
+                          <MarkdownContent
+                            content={choice.content}
+                            className="min-w-0 flex-1 [&_p]:my-0"
+                          />
+                          {choice.isCorrect ? (
+                            <span className="shrink-0 font-semibold text-emerald-700">
+                              Đáp án đúng
+                            </span>
+                          ) : null}
+                        </div>
                       </p>
                     ))}
                   </div>
@@ -924,9 +959,15 @@ function QuizGradingEditor({
                 )}
 
                 {question.explanation ? (
-                  <p className="mt-3 rounded-lg bg-blue-50/60 p-3 text-xs text-[#475467]">
-                    Hướng dẫn / đáp án: {question.explanation}
-                  </p>
+                  <div className="mt-3 rounded-lg bg-blue-50/60 p-3">
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#667085]">
+                      Hướng dẫn / đáp án
+                    </p>
+                    <MarkdownContent
+                      content={question.explanation}
+                      className="text-xs"
+                    />
+                  </div>
                 ) : null}
 
                 {objective ? (

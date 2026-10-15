@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { MarkdownContent } from "@/components/ui/markdown-content";
+
 type Answer = {
   questionId: string;
   answerText?: string | null;
@@ -489,13 +491,17 @@ export function StudentQuizPlayer({ quizId }: { quizId: string }) {
             className="scroll-mt-36 rounded-2xl border border-[#E4E7EC] bg-white p-5 sm:p-6"
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h2 className="font-semibold text-[#172033]">
-                  Câu {index + 1}. {question.content}
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#667085]">
+                  Câu {index + 1} · {question.score} điểm
                   {question.required ? (
-                    <span className="text-red-600"> *</span>
+                    <span className="text-red-600"> · Bắt buộc</span>
                   ) : null}
-                </h2>
+                </p>
+                <MarkdownContent
+                  content={question.content}
+                  className="mt-1 font-semibold text-[#172033] [&_p]:my-0"
+                />
                 {question.type === "MULTIPLE_CHOICE" ? (
                   <p className="mt-1 text-xs text-[#667085]">
                     Có thể chọn nhiều đáp án.
@@ -578,9 +584,10 @@ export function StudentQuizPlayer({ quizId }: { quizId: string }) {
                         }}
                       />
 
-                      <span className="text-sm text-[#344054]">
-                        {choice.content}
-                      </span>
+                      <MarkdownContent
+                        content={choice.content}
+                        className="min-w-0 flex-1 [&_p]:my-0"
+                      />
 
                       <span className="ml-auto flex flex-wrap items-center justify-end gap-2">
                         {!editable && selected ? (
@@ -628,9 +635,12 @@ export function StudentQuizPlayer({ quizId }: { quizId: string }) {
                   </p>
                 ) : null}
                 {question.explanation ? (
-                  <p className="mt-2 text-[#667085]">
-                    Giải thích: {question.explanation}
-                  </p>
+                  <div className="mt-3 border-t border-[#E4E7EC] pt-3">
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-[#667085]">
+                      Giải thích / hướng dẫn
+                    </p>
+                    <MarkdownContent content={question.explanation} />
+                  </div>
                 ) : null}
               </div>
             ) : null}

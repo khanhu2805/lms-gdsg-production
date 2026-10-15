@@ -108,7 +108,11 @@ export function resolveContentTransition(
     return "REOPEN_REQUESTED";
   }
 
-  if (action === "REOPEN" && isAdministrator && status === "REOPEN_REQUESTED") {
+  if (
+    action === "REOPEN" &&
+    isAdministrator &&
+    ["PUBLISHED", "REOPEN_REQUESTED"].includes(status)
+  ) {
     return "REOPENED";
   }
 

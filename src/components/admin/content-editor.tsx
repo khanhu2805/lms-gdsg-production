@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionDialogs } from "@/components/ui/action-dialogs";
+import { MarkdownEditor } from "@/components/ui/markdown-editor";
 import {
   Archive,
   Check,
@@ -231,7 +232,7 @@ function availableWorkflowActions(
       actions.push("PUBLISH");
     }
     if (status === "REOPEN_REQUESTED") actions.push("REOPEN", "REJECT_REOPEN");
-    if (status === "PUBLISHED") actions.push("HIDE");
+    if (status === "PUBLISHED") actions.push("REOPEN", "HIDE");
     if (!["PUBLISHED", "ARCHIVED"].includes(status)) actions.push("ARCHIVE");
     return actions;
   }
@@ -562,6 +563,10 @@ export function ContentEditor({
 
   async function workflow(action: WorkflowAction) {
     if (!content) return;
+    const actionText =
+      action === "REOPEN" && content.publicationStatus === "PUBLISHED"
+        ? "Tạo bản chỉnh sửa"
+        : actionLabel(action);
     const requiresComment = ["REQUEST_CHANGES", "REJECT"].includes(action);
     const requiresReason = [
       "REQUEST_REOPEN",
@@ -575,9 +580,9 @@ export function ContentEditor({
         ? await requestReason({
           title: requiresComment
             ? "Nhận xét duyệt nội dung"
-            : actionLabel(action),
+            : actionText,
           label: requiresComment ? "Nhận xét" : "Lý do",
-          confirmLabel: actionLabel(action),
+          confirmLabel: actionText,
           danger: ["REJECT", "REJECT_REOPEN", "HIDE", "ARCHIVE"].includes(action),
         })
         : undefined;
@@ -597,7 +602,7 @@ export function ContentEditor({
         },
       );
       setNotice({
-        message: `Đã ${actionLabel(action).toLowerCase()} nội dung.`,
+        message: `Đã ${actionText.toLowerCase()} nội dung.`,
         tone: "success",
       });
       if (action === "REOPEN" && updated.id !== content.id) {
@@ -977,27 +982,35 @@ export function ContentEditor({
                   Bắt buộc trả lời
                 </label>
               </div>
-              <Field label="Nội dung câu hỏi" required className="mt-4">
-                <textarea
+              <Field
+                label="Nội dung câu hỏi"
+                hint="Hỗ trợ in đậm, in nghiêng, xuống dòng, danh sách và công thức."
+                required
+                className="mt-4"
+              >
+                <MarkdownEditor
                   value={question.content}
-                  onChange={(event) =>
-                    updateQuestion(questionIndex, {
-                      content: event.target.value,
-                    })
+                  onChange={(content) =>
+                    updateQuestion(questionIndex, { content })
                   }
                   required
-                  className={TEXTAREA_CLASS}
+                  rows={6}
+                  placeholder="Nhập nội dung câu hỏi..."
                 />
               </Field>
-              <Field label="Giải thích đáp án" className="mt-4">
-                <textarea
+
+              <Field
+                label="Giải thích / hướng dẫn đáp án"
+                hint="Nội dung này chỉ hiển thị cho học sinh khi đến thời điểm công bố đáp án."
+                className="mt-4"
+              >
+                <MarkdownEditor
                   value={question.explanation}
-                  onChange={(event) =>
-                    updateQuestion(questionIndex, {
-                      explanation: event.target.value,
-                    })
+                  onChange={(explanation) =>
+                    updateQuestion(questionIndex, { explanation })
                   }
-                  className={TEXTAREA_CLASS}
+                  rows={4}
+                  placeholder="Nhập lời giải hoặc hướng dẫn chấm..."
                 />
               </Field>
               {question.choices.length ? (
@@ -1030,17 +1043,20 @@ export function ContentEditor({
                         }
                         className="size-4"
                       />
-                      <input
-                        value={choice.content}
-                        onChange={(event) =>
-                          updateChoice(questionIndex, choiceIndex, {
-                            content: event.target.value,
-                          })
-                        }
-                        required
-                        placeholder={`Lựa chọn ${choiceIndex + 1}`}
-                        className={`${INPUT_CLASS} mt-0`}
-                      />
+                      <div className="min-w-0 flex-1">
+                        <MarkdownEditor
+                          value={choice.content}
+                          onChange={(content) =>
+                            updateChoice(questionIndex, choiceIndex, {
+                              content,
+                            })
+                          }
+                          required
+                          compact
+                          rows={2}
+                          placeholder={`Lựa chọn ${choiceIndex + 1}`}
+                        />
+                      </div>
                       {question.choices.length > 2 ? (
                         <button
                           type="button"
@@ -1357,7 +1373,10 @@ export function ContentEditor({
                   className={danger ? DANGER_BUTTON : PRIMARY_BUTTON}
                 >
                   <Icon className="mr-2 size-4" />
-                  {actionLabel(action)}
+                  {action === "REOPEN" &&
+                  content.publicationStatus === "PUBLISHED"
+                    ? "Tạo bản chỉnh sửa"
+                    : actionLabel(action)}
                 </button>
               );
             })}
