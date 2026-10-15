@@ -57,6 +57,15 @@ export async function getStudentAssignment(actor: Actor, assignmentId: string) {
           classSessionId: true,
         },
       },
+      questionGroups: {
+        orderBy: { order: "asc" },
+        select: {
+          id: true,
+          title: true,
+          content: true,
+          order: true,
+        },
+      },
       questions: {
         orderBy: { order: "asc" },
         select: {
@@ -64,6 +73,8 @@ export async function getStudentAssignment(actor: Actor, assignmentId: string) {
           type: true,
           content: true,
           order: true,
+          groupId: true,
+          groupOrder: true,
           score: true,
           explanation: true,
           required: true,
@@ -124,11 +135,19 @@ export async function getStudentAssignment(actor: Actor, assignmentId: string) {
 
   return {
     ...assignment,
+    questionGroups: assignment.questionGroups.map((group) => ({
+      id: group.id,
+      title: group.title,
+      content: group.content,
+      order: group.order,
+    })),
     questions: assignment.questions.map((question) => ({
       id: question.id,
       type: question.type,
       content: question.content,
       order: question.order,
+      groupId: question.groupId,
+      groupOrder: question.groupOrder,
       score: question.score,
       required: question.required,
       explanation: canSeeResult ? question.explanation : null,
