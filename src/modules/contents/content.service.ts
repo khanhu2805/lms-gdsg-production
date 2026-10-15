@@ -1414,7 +1414,12 @@ export async function executeContentWorkflow(
           where: { contentId, status: "PENDING" },
           orderBy: { createdAt: "desc" },
         });
-        if (!pendingRequest) {
+
+        const directAdministratorReopen =
+          (actor.role === "ADMIN" || actor.role === "MANAGER") &&
+          content.publicationStatus === "PUBLISHED";
+
+        if (!pendingRequest && !directAdministratorReopen) {
           throw new AppError(
             "CONFLICT",
             "Không có yêu cầu mở lại đang chờ xử lý.",
@@ -1428,23 +1433,31 @@ export async function executeContentWorkflow(
           >,
           actor,
         );
+
+        // Giữ nguyên phiên bản đang xuất bản để học sinh hiện tại không bị ảnh hưởng.
         await tx.content.update({
           where: { id: content.id },
           data: { publicationStatus: "PUBLISHED" },
         });
-        await tx.contentReopenRequest.update({
-          where: { id: pendingRequest.id },
-          data: {
-            status: "APPROVED",
-            resolvedById: actor.id,
-            resolvedAt: now,
-            resolutionComment: input.reason,
-          },
-        });
+
+        if (pendingRequest) {
+          await tx.contentReopenRequest.update({
+            where: { id: pendingRequest.id },
+            data: {
+              status: "APPROVED",
+              resolvedById: actor.id,
+              resolvedAt: now,
+              resolutionComment: input.reason,
+            },
+          });
+        }
+
         await writeAuditLog(tx, {
           actorId: actor.id,
           actorRole: actor.role,
-          action: "CONTENT_REOPEN_APPROVED",
+          action: directAdministratorReopen
+            ? "CONTENT_VERSION_CREATED_FOR_EDIT"
+            : "CONTENT_REOPEN_APPROVED",
           entityType: "Content",
           entityId: newVersion.id,
           oldValue: content,
@@ -1452,6 +1465,7 @@ export async function executeContentWorkflow(
           reason: input.reason,
           context,
         });
+
         return newVersion;
       }
 
