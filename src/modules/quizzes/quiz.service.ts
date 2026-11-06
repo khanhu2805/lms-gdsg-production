@@ -12,6 +12,7 @@ import { prisma } from "@/lib/database/client";
 import { AppError } from "@/lib/errors/app-error";
 import type { RequestContext } from "@/lib/security/request-context";
 import { writeAuditLog } from "@/modules/audit/audit.service";
+import { shouldAutoPublishOnSubmit } from "@/modules/grading/publishing";
 
 import { calculateAttemptExpiry, getQuizAvailability } from "./quiz-timing";
 import type {
@@ -278,6 +279,7 @@ export async function getQuizAttemptForStudent(
       ? {
           finalScore: attempt.finalScore,
           maxScore: attempt.quiz.maxScore,
+          teacherFeedback: attempt.teacherFeedback,
         }
       : null,
     questionGroups: attempt.quiz.questionGroups.map((group) => ({
@@ -520,6 +522,7 @@ export async function submitQuizAttempt(
           submittedAt: now,
           autoScore,
           finalScore: requiresManualGrading ? null : autoScore,
+          publishedAt: shouldAutoPublishOnSubmit(attempt.quiz.autoPublishGrades, requiresManualGrading, true) ? now : null,
         },
         select: {
           id: true,
@@ -759,6 +762,7 @@ export async function gradeQuizAttempt(
         manualScore,
         finalScore,
         teacherFeedback: input.feedback?.trim() || null,
+        ...(input.publishNow ? { publishedAt: now, publishedById: actor.id } : {}),
         gradedById: actor.id,
         gradedAt: now,
         status: "GRADED",

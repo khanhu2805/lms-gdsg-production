@@ -27,6 +27,7 @@ export const gradeQuizAttemptSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("GRADE"),
     answers: z.array(answerGradeSchema).max(200),
+    publishNow: z.boolean().default(false),
     feedback: z.string().trim().max(20_000).optional(),
     reason: z.string().trim().min(3).max(1000),
   }),

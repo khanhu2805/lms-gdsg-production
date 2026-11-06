@@ -412,6 +412,7 @@ function AssignmentGradingEditor({
             })),
             feedback:
               String(formData.get("feedback") ?? "").trim() || undefined,
+            publishNow: formData.get("publishNow") === "on",
             reason: String(formData.get("reason") ?? ""),
           };
 
@@ -482,15 +483,6 @@ function AssignmentGradingEditor({
   return (
     <div className="space-y-5">
       <MutationNotice {...notice} />
-      <div className="flex justify-end">
-        <a
-          href={`/api/v1/grading/export/assignment/${submission.assignment.id}`}
-          className={SECONDARY_BUTTON}
-        >
-          <Download className="mr-2 size-4" />
-          Xuất toàn bộ bài làm (Word)
-        </a>
-      </div>
 
       <SectionCard title="Bài nộp">
         <div className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -746,10 +738,19 @@ function AssignmentGradingEditor({
                   : submission.teacherFeedback ?? ""
               }
               disabled={Boolean(submission.publishedAt)}
-              className={TEXTAREA_CLASS}
+              rows={6}
+              maxLength={20_000}
+              placeholder="Ưu điểm, nội dung cần cải thiện và hướng dẫn ôn tập (có thể để trống)."
+              className={`${TEXTAREA_CLASS} min-h-40 w-full resize-y`}
             />
           </Field>
 
+          {!assistant ? (
+            <label className="flex items-center gap-2 rounded-lg bg-[#F7F9FF] p-3 text-sm text-[#344054]">
+              <input type="checkbox" name="publishNow" className="size-4" disabled={Boolean(submission.publishedAt)} />
+              Chấm xong và công bố điểm ngay (không cần bấm lần hai)
+            </label>
+          ) : null}
           <div className="flex justify-end">
             <button
               disabled={busy || Boolean(submission.publishedAt)}
@@ -847,6 +848,7 @@ function QuizGradingEditor({
                 ).trim() || undefined,
             })),
             feedback: String(formData.get("feedback") ?? "").trim() || undefined,
+            publishNow: formData.get("publishNow") === "on",
             reason: String(formData.get("reason") ?? ""),
           };
 
@@ -907,15 +909,6 @@ function QuizGradingEditor({
   return (
     <div className="space-y-5">
       <MutationNotice {...notice} />
-      <div className="flex justify-end">
-        <a
-          href={`/api/v1/grading/export/quiz/${attempt.quiz.id}`}
-          className={SECONDARY_BUTTON}
-        >
-          <Download className="mr-2 size-4" />
-          Xuất toàn bộ bài làm (Word)
-        </a>
-      </div>
 
       <SectionCard title="Lượt làm bài kiểm tra">
         <div className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -1156,11 +1149,20 @@ function QuizGradingEditor({
                 name="feedback"
                 defaultValue={attempt.teacherFeedback ?? ""}
                 disabled={Boolean(attempt.publishedAt)}
-                className={TEXTAREA_CLASS}
+                rows={6}
+                maxLength={20_000}
+                placeholder="Ưu điểm, nội dung cần cải thiện và hướng dẫn ôn tập (có thể để trống)."
+                className={`${TEXTAREA_CLASS} min-h-40 w-full resize-y`}
               />
             </Field>
           ) : null}
 
+          {!assistant ? (
+            <label className="flex items-center gap-2 rounded-lg bg-[#F7F9FF] p-3 text-sm text-[#344054]">
+              <input type="checkbox" name="publishNow" className="size-4" disabled={Boolean(attempt.publishedAt)} />
+              Chấm xong và công bố điểm ngay (không cần bấm lần hai)
+            </label>
+          ) : null}
           <div className="flex flex-wrap justify-end gap-3">
             <button
               disabled={busy || Boolean(attempt.publishedAt)}

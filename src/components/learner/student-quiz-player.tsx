@@ -46,7 +46,7 @@ type Attempt = {
   startedAt: string;
   expiresAt: string;
   submittedAt?: string | null;
-  result?: { finalScore?: number | null; maxScore: number } | null;
+  result?: { finalScore?: number | null; maxScore: number; teacherFeedback?: string | null } | null;
   questionGroups: Array<{
     id: string;
     title?: string | null;
@@ -458,6 +458,9 @@ export function StudentQuizPlayer({ quizId }: { quizId: string }) {
           <strong>
             {attempt.result.finalScore ?? "—"}/{attempt.result.maxScore}
           </strong>
+          {attempt.result.teacherFeedback ? (
+            <p className="mt-3 whitespace-pre-wrap"><strong>Nhận xét giáo viên:</strong> {attempt.result.teacherFeedback}</p>
+          ) : null}
         </div>
       ) : !editable ? (
         <div className="rounded-2xl bg-[#F7F8FC] p-5 text-sm text-[#667085]">

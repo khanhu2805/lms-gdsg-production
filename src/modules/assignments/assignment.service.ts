@@ -10,6 +10,7 @@ import { prisma } from "@/lib/database/client";
 import { AppError } from "@/lib/errors/app-error";
 import type { RequestContext } from "@/lib/security/request-context";
 import { writeAuditLog } from "@/modules/audit/audit.service";
+import { shouldAutoPublishOnSubmit } from "@/modules/grading/publishing";
 
 import type {
   gradeSubmissionSchema,
@@ -409,6 +410,7 @@ export async function saveAssignmentSubmission(
                 isLate,
                 autoScore,
                 finalScore: requiresManualGrading ? null : autoScore,
+                publishedAt: shouldAutoPublishOnSubmit(assignment.autoPublishGrades, requiresManualGrading, true) ? now : null,
               }
             : {
                 autoScore,
@@ -604,7 +606,8 @@ export async function gradeSubmission(
             ? {
                 manualScore,
                 finalScore,
-                teacherFeedback: input.feedback,
+                teacherFeedback: input.feedback?.trim() || null,
+                ...(input.publishNow ? { publishedAt: now, publishedById: actor.id } : {}),
                 gradedById: actor.id,
                 gradedAt: now,
                 status: "GRADED",
