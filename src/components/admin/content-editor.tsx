@@ -91,6 +91,7 @@ type ContentPayload = {
   showResultAt?: string | null;
   showCorrectAnswersAt?: string | null;
   maxScore?: string | number;
+  autoPublishGrades?: boolean;
   questionGroups?: Array<{
     key: string;
     title?: string | null;
@@ -554,6 +555,7 @@ export function ContentEditor({
           allowLateSubmission: formData.get("allowLateSubmission") === "on",
           maxAttempts: Number(formData.get("maxAttempts")),
           maxScore,
+          autoPublishGrades: formData.get("autoPublishGrades") === "on",
           questionGroups: questionGroupPayload(),
           questions: questionPayload(),
         };
@@ -576,6 +578,7 @@ export function ContentEditor({
             optionalIsoDate(formData.get("showCorrectAnswersAt")) ??
             (content ? null : undefined),
           maxScore,
+          autoPublishGrades: formData.get("autoPublishGrades") === "on",
           questionGroups: questionGroupPayload(),
           questions: questionPayload(),
         };
@@ -936,6 +939,16 @@ export function ContentEditor({
             </>
           )}
         </div>
+        <label className="mt-4 flex items-start gap-3 rounded-xl border border-[#D9E0F2] bg-[#F7F9FF] p-4 text-sm text-[#344054]">
+          <input type="checkbox" name="autoPublishGrades"
+            defaultChecked={payload?.autoPublishGrades ?? false} className="mt-1 size-4" />
+          <span><strong>Tự động công bố điểm khi nộp</strong>
+            <span className="mt-1 block text-xs text-[#667085]">
+              Chỉ áp dụng khi tất cả câu hỏi được chấm tự động (trắc nghiệm).
+              Bài tự luận hoặc nộp file cần giáo viên chấm. Mặc định tắt.
+            </span>
+          </span>
+        </label>
         {quiz ? (
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Hiện kết quả lúc">

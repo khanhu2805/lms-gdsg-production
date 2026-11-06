@@ -237,6 +237,7 @@ export const createContentSchema = z.discriminatedUnion("type", [
         allowLateSubmission: z.boolean().default(false),
         maxAttempts: z.number().int().min(1).max(20).default(1),
         maxScore: z.number().min(0).max(100_000),
+        autoPublishGrades: z.boolean().default(false),
         questionGroups: z.array(questionGroupSchema).max(100).default([]),
         questions: z.array(questionSchema).min(1).max(200),
       })
@@ -263,6 +264,7 @@ export const createContentSchema = z.discriminatedUnion("type", [
         showResultAt: z.coerce.date().nullable().optional(),
         showCorrectAnswersAt: z.coerce.date().nullable().optional(),
         maxScore: z.number().min(0).max(100_000),
+        autoPublishGrades: z.boolean().default(false),
         questionGroups: z.array(questionGroupSchema).max(100).default([]),
         questions: z.array(questionSchema).min(1).max(200),
       })
