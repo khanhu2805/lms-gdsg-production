@@ -127,6 +127,7 @@ type QuizGradingAttempt = {
   manualScore?: string | number | null;
   finalScore?: string | number | null;
   assistantSuggestedScore?: string | number | null;
+  teacherFeedback?: string | null;
   publishedAt?: string | null;
   student: {
     id: string;
@@ -725,7 +726,7 @@ function AssignmentGradingEditor({
             </Field>
           </div>
 
-          <Field label={assistant ? "Nhận xét đề xuất" : "Nhận xét chung"}>
+          <Field label={assistant ? "Nhận xét đề xuất (nếu có)" : "Nhận xét chung (nếu có)"}>
             <textarea
               name="feedback"
               defaultValue={
@@ -834,6 +835,7 @@ function QuizGradingEditor({
                   formData.get(`feedback-${question.id}`) ?? "",
                 ).trim() || undefined,
             })),
+            feedback: String(formData.get("feedback") ?? "").trim() || undefined,
             reason: String(formData.get("reason") ?? ""),
           };
 
@@ -1127,6 +1129,17 @@ function QuizGradingEditor({
               />
             </Field>
           </div>
+
+          {!assistant ? (
+            <Field label="Nhận xét chung (nếu có)">
+              <textarea
+                name="feedback"
+                defaultValue={attempt.teacherFeedback ?? ""}
+                disabled={Boolean(attempt.publishedAt)}
+                className={TEXTAREA_CLASS}
+              />
+            </Field>
+          ) : null}
 
           <div className="flex flex-wrap justify-end gap-3">
             <button
