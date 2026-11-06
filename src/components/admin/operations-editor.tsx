@@ -72,6 +72,7 @@ type GradingSubmission = {
     profile?: { studentCode?: string | null } | null;
   };
   assignment: {
+    id: string;
     maxScore: string | number;
     questionGroups: Array<{
       id: string;
@@ -136,6 +137,7 @@ type QuizGradingAttempt = {
     profile?: { studentCode?: string | null } | null;
   };
   quiz: {
+    id: string;
     maxScore: string | number;
     questionGroups: Array<{
       id: string;
@@ -480,6 +482,15 @@ function AssignmentGradingEditor({
   return (
     <div className="space-y-5">
       <MutationNotice {...notice} />
+      <div className="flex justify-end">
+        <a
+          href={`/api/v1/grading/export/assignment/${submission.assignment.id}`}
+          className={SECONDARY_BUTTON}
+        >
+          <Download className="mr-2 size-4" />
+          Xuất toàn bộ bài làm (Word)
+        </a>
+      </div>
 
       <SectionCard title="Bài nộp">
         <div className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -896,6 +907,15 @@ function QuizGradingEditor({
   return (
     <div className="space-y-5">
       <MutationNotice {...notice} />
+      <div className="flex justify-end">
+        <a
+          href={`/api/v1/grading/export/quiz/${attempt.quiz.id}`}
+          className={SECONDARY_BUTTON}
+        >
+          <Download className="mr-2 size-4" />
+          Xuất toàn bộ bài làm (Word)
+        </a>
+      </div>
 
       <SectionCard title="Lượt làm bài kiểm tra">
         <div className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
