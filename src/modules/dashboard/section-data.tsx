@@ -35,7 +35,7 @@ function pill(value: string) {
 
 function rowActions(
   href: string,
-  options: { canEdit?: boolean; editLabel?: string } = {},
+  options: { canEdit?: boolean; editLabel?: string; exportUrl?: string } = {},
 ) {
   return (
     <div className="flex min-w-max items-center gap-2">
@@ -45,6 +45,9 @@ function rowActions(
       >
         Xem
       </Link>
+      {options.exportUrl ? (
+        <a href={options.exportUrl} className="inline-flex min-h-9 items-center rounded-lg border border-[#4059A5] bg-[#F7F9FF] px-3 text-xs font-semibold text-[#243467] hover:bg-[#E9EEFF]">Xuất Word – tất cả HS</a>
+      ) : null}
       {options.canEdit ? (
         <Link
           href={`${href}#edit`}
@@ -549,6 +552,7 @@ export async function loadSectionData(
               },
               assignment: {
                 select: {
+                  id: true,
                   maxScore: true,
                   content: {
                     select: {
@@ -606,6 +610,7 @@ export async function loadSectionData(
               },
               quiz: {
                 select: {
+                  id: true,
                   maxScore: true,
                   content: {
                     select: {
@@ -655,6 +660,7 @@ export async function loadSectionData(
           rowActions(`/dashboard/grading/${submission.id}`, {
             canEdit: true,
             editLabel: submission.publishedAt ? "Xem bài" : "Chấm bài",
+            exportUrl: `/api/v1/grading/export/assignment/${submission.assignment.id}`,
           }),
         ],
       })),
@@ -691,6 +697,7 @@ export async function loadSectionData(
           rowActions(`/dashboard/grading/quiz-${attempt.id}`, {
             canEdit: true,
             editLabel: attempt.publishedAt ? "Xem bài" : "Chấm bài",
+            exportUrl: `/api/v1/grading/export/quiz/${attempt.quiz.id}`,
           }),
         ],
       })),
@@ -946,6 +953,7 @@ export async function loadSectionData(
         where: {
           studentId: { in: studentIds },
           publishedAt: { not: null },
+          quiz: { OR: [{ showResultAt: null }, { showResultAt: { lte: new Date() } }] },
         },
         select: {
           id: true,
