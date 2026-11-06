@@ -72,6 +72,7 @@ type GradingSubmission = {
     profile?: { studentCode?: string | null } | null;
   };
   assignment: {
+    id: string;
     maxScore: string | number;
     questionGroups: Array<{
       id: string;
@@ -127,6 +128,7 @@ type QuizGradingAttempt = {
   manualScore?: string | number | null;
   finalScore?: string | number | null;
   assistantSuggestedScore?: string | number | null;
+  teacherFeedback?: string | null;
   publishedAt?: string | null;
   student: {
     id: string;
@@ -135,6 +137,7 @@ type QuizGradingAttempt = {
     profile?: { studentCode?: string | null } | null;
   };
   quiz: {
+    id: string;
     maxScore: string | number;
     questionGroups: Array<{
       id: string;
@@ -479,6 +482,15 @@ function AssignmentGradingEditor({
   return (
     <div className="space-y-5">
       <MutationNotice {...notice} />
+      <div className="flex justify-end">
+        <a
+          href={`/api/v1/grading/export/assignment/${submission.assignment.id}`}
+          className={SECONDARY_BUTTON}
+        >
+          <Download className="mr-2 size-4" />
+          Xuất toàn bộ bài làm (Word)
+        </a>
+      </div>
 
       <SectionCard title="Bài nộp">
         <div className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -725,7 +737,7 @@ function AssignmentGradingEditor({
             </Field>
           </div>
 
-          <Field label={assistant ? "Nhận xét đề xuất" : "Nhận xét chung"}>
+          <Field label={assistant ? "Nhận xét đề xuất (nếu có)" : "Nhận xét chung (nếu có)"}>
             <textarea
               name="feedback"
               defaultValue={
@@ -834,6 +846,7 @@ function QuizGradingEditor({
                   formData.get(`feedback-${question.id}`) ?? "",
                 ).trim() || undefined,
             })),
+            feedback: String(formData.get("feedback") ?? "").trim() || undefined,
             reason: String(formData.get("reason") ?? ""),
           };
 
@@ -894,6 +907,15 @@ function QuizGradingEditor({
   return (
     <div className="space-y-5">
       <MutationNotice {...notice} />
+      <div className="flex justify-end">
+        <a
+          href={`/api/v1/grading/export/quiz/${attempt.quiz.id}`}
+          className={SECONDARY_BUTTON}
+        >
+          <Download className="mr-2 size-4" />
+          Xuất toàn bộ bài làm (Word)
+        </a>
+      </div>
 
       <SectionCard title="Lượt làm bài kiểm tra">
         <div className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -1127,6 +1149,17 @@ function QuizGradingEditor({
               />
             </Field>
           </div>
+
+          {!assistant ? (
+            <Field label="Nhận xét chung (nếu có)">
+              <textarea
+                name="feedback"
+                defaultValue={attempt.teacherFeedback ?? ""}
+                disabled={Boolean(attempt.publishedAt)}
+                className={TEXTAREA_CLASS}
+              />
+            </Field>
+          ) : null}
 
           <div className="flex flex-wrap justify-end gap-3">
             <button

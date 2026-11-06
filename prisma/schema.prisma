@@ -942,6 +942,7 @@ model QuizAttempt {
   autoScore               Decimal?          @db.Decimal(7, 2)
   manualScore             Decimal?          @db.Decimal(7, 2)
   finalScore              Decimal?          @db.Decimal(7, 2)
+  teacherFeedback         String?           @db.Text
   assistantSuggestedScore Decimal?          @db.Decimal(7, 2)
   gradedById              String?           @db.Uuid
   gradedAt                DateTime?

@@ -758,6 +758,7 @@ export async function gradeQuizAttempt(
       data: {
         manualScore,
         finalScore,
+        teacherFeedback: input.feedback?.trim() || null,
         gradedById: actor.id,
         gradedAt: now,
         status: "GRADED",

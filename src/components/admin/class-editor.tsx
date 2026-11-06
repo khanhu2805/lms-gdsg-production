@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionDialogs } from "@/components/ui/action-dialogs";
-import { Archive, ArrowRightLeft, UserMinus, UserPlus, Trash2, } from "lucide-react";
+import { Archive, ArrowRightLeft, Download, UserMinus, UserPlus, Trash2, } from "lucide-react";
 
 import type { ResourceOption } from "@/modules/dashboard/resource-data";
 
@@ -547,6 +547,20 @@ export function ClassEditor({
     <div className="space-y-5">
       <MutationNotice {...notice} />
       <SectionCard title="Tổng quan lớp học">
+        <div className="mb-5 flex flex-wrap gap-2">
+          <a href={`/api/v1/classes/${courseClass.id}/emails/export`} className={SECONDARY_BUTTON}>
+            <Download className="mr-2 size-4" />
+            Xuất danh sách email (CSV)
+          </a>
+          <a href={`/api/v1/classes/${courseClass.id}/emails/export?format=txt`} className={SECONDARY_BUTTON}>
+            <Download className="mr-2 size-4" />
+            Xuất email gửi hàng loạt (TXT)
+          </a>
+        </div>
+        <p className="mb-5 text-xs text-[#667085]">
+          Bao gồm tài khoản hoạt động: giáo viên, trợ giảng, học sinh và
+          phụ huynh liên kết. Chỉ nhân sự có quyền với lớp được tải.
+        </p>
         <dl className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-5">
           <div>
             <dt className="text-[#667085]">Mã lớp</dt>

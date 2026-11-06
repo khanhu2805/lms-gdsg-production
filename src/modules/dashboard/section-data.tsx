@@ -950,6 +950,7 @@ export async function loadSectionData(
         select: {
           id: true,
           finalScore: true,
+          teacherFeedback: true,
           publishedAt: true,
           student: { select: { name: true } },
           quiz: {
@@ -984,7 +985,7 @@ export async function loadSectionData(
           result.quiz.content.title,
           pill("Bài kiểm tra"),
           `${result.finalScore ?? "—"}/${result.quiz.maxScore}`,
-          "—",
+          result.teacherFeedback?.trim() || "—",
           formatDateTime(result.publishedAt),
         ],
       })),
